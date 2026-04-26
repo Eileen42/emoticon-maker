@@ -1,0 +1,1547 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="이미지를 업로드하면 칸 수에 맞춰 자동 분할하고, 스티커 모드 또는 AI 누끼 모드로 배경을 투명하게 만들어 카톡 스티커용 PNG를 만들어주는 무료 웹앱" />
+    <meta name="theme-color" content="#6366f1" />
+    <title>이모티콘 자동 분할 메이커 — 무료 카톡 스티커 메이커</title>
+
+    <!-- ============================================================
+         외부 라이브러리 (CDN)
+         - imgly : 브라우저에서 동작하는 AI 배경 제거 라이브러리
+                   (모드 B: AI 누끼 모드에서만 호출)
+         ============================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser.js"></script>
+
+    <style>
+        /* ===========================================================
+           디자인 토큰 (Tailwind 스타일 CSS 변수)
+           ─────────────────────────────────────────────
+           모든 색/그림자/라운드/간격을 변수로 관리하여
+           비개발자도 색깔만 바꾸면 전체 톤이 바뀌도록 구성
+           =========================================================== */
+        :root {
+            /* 브랜드 컬러 */
+            --color-primary: #6366f1;          /* 인디고 500 */
+            --color-primary-hover: #4f46e5;    /* 인디고 600 */
+            --color-primary-light: #eef2ff;    /* 인디고 50  */
+            --color-accent: #ec4899;           /* 핑크 500   */
+
+            /* 중립 컬러 */
+            --color-bg: #f8fafc;               /* 슬레이트 50 */
+            --color-surface: #ffffff;
+            --color-border: #e2e8f0;           /* 슬레이트 200 */
+            --color-text: #0f172a;             /* 슬레이트 900 */
+            --color-text-muted: #64748b;       /* 슬레이트 500 */
+            --color-text-light: #94a3b8;       /* 슬레이트 400 */
+
+            /* 상태 컬러 */
+            --color-success: #10b981;
+            --color-danger: #ef4444;
+            --color-warning: #f59e0b;
+
+            /* 라운드 / 그림자 */
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
+            --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -4px rgba(15, 23, 42, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(15, 23, 42, 0.10), 0 8px 10px -6px rgba(15, 23, 42, 0.06);
+
+            /* 트랜지션 */
+            --transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* ===========================================================
+           기본 리셋 & 타이포
+           =========================================================== */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        html { -webkit-text-size-adjust: 100%; }
+        body {
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo',
+                         'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--color-bg);
+            color: var(--color-text);
+            line-height: 1.6;
+            min-height: 100vh;
+            -webkit-font-smoothing: antialiased;
+        }
+        button { font: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+        input, label { font: inherit; }
+        img { max-width: 100%; display: block; }
+
+        /* ===========================================================
+           레이아웃 컨테이너 (모바일 우선)
+           =========================================================== */
+        .container {
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
+
+        /* ===========================================================
+           헤더
+           =========================================================== */
+        .header {
+            background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+            color: white;
+            padding: 24px 0 28px;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+        }
+        .header__title {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .header__subtitle {
+            margin-top: 4px;
+            font-size: 13px;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+        @media (min-width: 768px) {
+            .header { padding: 36px 0 40px; }
+            .header__title { font-size: 28px; }
+            .header__subtitle { font-size: 14px; margin-top: 6px; }
+        }
+
+        /* ===========================================================
+           애드센스 광고 영역 (반응형 Placeholder)
+           실제 운영 시 <ins class="adsbygoogle"> 태그로 교체
+           =========================================================== */
+        .ad-slot {
+            margin: 16px auto;
+            min-height: 100px;
+            background: var(--color-surface);
+            border: 1px dashed var(--color-border);
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--color-text-light);
+            font-size: 12px;
+            text-align: center;
+            padding: 16px;
+        }
+        @media (min-width: 768px) {
+            .ad-slot { min-height: 120px; }
+        }
+
+        /* ===========================================================
+           메인 컨텐츠
+           =========================================================== */
+        main { padding: 8px 0 40px; }
+        .card {
+            background: var(--color-surface);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            padding: 20px;
+            margin-bottom: 16px;
+        }
+        @media (min-width: 768px) {
+            .card { padding: 28px; margin-bottom: 20px; }
+        }
+        .card__title {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .card__title .step-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 26px;
+            height: 26px;
+            background: var(--color-primary);
+            color: white;
+            border-radius: 50%;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        /* ===========================================================
+           1단계: 분할 설정 (가로/세로 칸수)
+           =========================================================== */
+        .grid-config {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .grid-config__item label {
+            display: block;
+            font-size: 13px;
+            color: var(--color-text-muted);
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+        .grid-config__input-wrap {
+            display: flex;
+            align-items: center;
+            background: var(--color-bg);
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: border-color var(--transition), box-shadow var(--transition);
+        }
+        .grid-config__input-wrap:focus-within {
+            border-color: var(--color-primary);
+            box-shadow: 0 0 0 3px var(--color-primary-light);
+        }
+        .grid-config__input-wrap button {
+            width: 38px;
+            height: 44px;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--color-primary);
+            transition: background var(--transition);
+        }
+        .grid-config__input-wrap button:hover { background: var(--color-primary-light); }
+        .grid-config__input-wrap input {
+            flex: 1;
+            text-align: center;
+            font-size: 16px;
+            font-weight: 700;
+            border: none;
+            outline: none;
+            background: transparent;
+            color: var(--color-text);
+            -moz-appearance: textfield;
+        }
+        .grid-config__input-wrap input::-webkit-outer-spin-button,
+        .grid-config__input-wrap input::-webkit-inner-spin-button {
+            -webkit-appearance: none; margin: 0;
+        }
+        .grid-config__hint {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--color-text-light);
+            text-align: center;
+        }
+        .grid-config__hint strong { color: var(--color-primary); font-weight: 700; }
+
+        /* ===========================================================
+           2단계: 이미지 업로드 (드래그&드롭 + 클릭 + 클립보드)
+           =========================================================== */
+        .upload-area {
+            position: relative;
+            border: 2px dashed var(--color-border);
+            border-radius: var(--radius-md);
+            padding: 32px 16px;
+            text-align: center;
+            background: var(--color-bg);
+            transition: all var(--transition);
+            cursor: pointer;
+        }
+        .upload-area:hover, .upload-area.is-dragover {
+            border-color: var(--color-primary);
+            background: var(--color-primary-light);
+        }
+        .upload-area input[type="file"] {
+            position: absolute; inset: 0; opacity: 0; cursor: pointer;
+        }
+        .upload-area__icon { font-size: 40px; margin-bottom: 8px; }
+        .upload-area__title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+        .upload-area__hint {
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--color-text-muted);
+        }
+        .upload-area__paste-hint {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 3px 10px;
+            background: var(--color-surface);
+            border: 1px solid var(--color-border);
+            border-radius: 999px;
+            font-size: 11px;
+            color: var(--color-text-muted);
+            font-weight: 500;
+        }
+        .upload-area__paste-hint kbd {
+            display: inline-block;
+            padding: 1px 6px;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 10px;
+            color: var(--color-text);
+        }
+        .preview-wrap {
+            display: none;
+            margin-top: 16px;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background:
+                linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+                linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 16px 16px;
+            background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+            position: relative;
+        }
+        .preview-wrap.is-active { display: block; }
+        .preview-wrap img { width: 100%; height: auto; }
+        .preview-grid-overlay {
+            position: absolute; inset: 0;
+            display: grid;
+            pointer-events: none;
+        }
+        .preview-grid-overlay > div {
+            border: 1px dashed rgba(99, 102, 241, 0.7);
+        }
+
+        /* ===========================================================
+           투명화 모드 선택 (라디오)
+           =========================================================== */
+        .mode-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .mode-group input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .mode-group label {
+            display: block;
+            padding: 14px 12px;
+            background: var(--color-bg);
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-align: center;
+            transition: all var(--transition);
+            user-select: none;
+        }
+        .mode-group label:hover {
+            border-color: var(--color-primary);
+        }
+        .mode-group input[type="radio"]:checked + label {
+            background: var(--color-primary-light);
+            border-color: var(--color-primary);
+            box-shadow: var(--shadow-md);
+        }
+        .mode-group .mode-emoji {
+            font-size: 24px;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .mode-group .mode-title {
+            display: block;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--color-text);
+            margin-bottom: 2px;
+        }
+        .mode-group .mode-desc {
+            display: block;
+            font-size: 11px;
+            color: var(--color-text-muted);
+            line-height: 1.4;
+        }
+
+        /* ===========================================================
+           3단계: 실행 버튼 / 진행 표시
+           =========================================================== */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 20px;
+            border-radius: var(--radius-md);
+            font-size: 15px;
+            font-weight: 700;
+            transition: all var(--transition);
+            width: 100%;
+        }
+        .btn--primary {
+            background: var(--color-primary);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        .btn--primary:hover:not(:disabled) {
+            background: var(--color-primary-hover);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+        .btn--primary:disabled {
+            background: var(--color-text-light);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        .btn--success {
+            background: var(--color-success);
+            color: white;
+            box-shadow: var(--shadow-md);
+        }
+        .btn--success:hover:not(:disabled) {
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+        .btn--success:disabled {
+            background: var(--color-text-light);
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+        .btn--ghost {
+            background: transparent;
+            color: var(--color-text-muted);
+            border: 1px solid var(--color-border);
+        }
+        .btn--ghost:hover { background: var(--color-bg); }
+
+        /* 진행상태 */
+        .progress-wrap {
+            display: none;
+            margin-top: 16px;
+            padding: 16px;
+            background: var(--color-primary-light);
+            border-radius: var(--radius-md);
+        }
+        .progress-wrap.is-active { display: block; }
+        .progress-status {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--color-primary-hover);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .progress-spinner {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(99, 102, 241, 0.3);
+            border-top-color: var(--color-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: white;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .progress-bar__fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+            border-radius: 999px;
+            transition: width 300ms ease;
+        }
+
+        /* ===========================================================
+           결과물 그리드 (모바일 2열, PC 4열)
+           =========================================================== */
+        .results-section { display: none; }
+        .results-section.is-active { display: block; }
+        .results-header {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 12px;
+        }
+        .results-header__count {
+            font-size: 13px;
+            color: var(--color-text-muted);
+        }
+        .results-header__count strong {
+            color: var(--color-primary);
+            font-weight: 700;
+        }
+        .results-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .results-actions .btn--ghost {
+            width: auto;
+            padding: 10px 14px;
+            font-size: 13px;
+        }
+        .download-all-wrap {
+            margin-bottom: 16px;
+        }
+        .download-warning {
+            font-size: 11.5px;
+            color: var(--color-text-muted);
+            background: #fffbeb;
+            border: 1px solid #fde68a;
+            border-radius: var(--radius-sm);
+            padding: 10px 12px;
+            margin-top: 8px;
+            line-height: 1.5;
+        }
+        .download-warning strong { color: var(--color-warning); }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        @media (min-width: 768px) {
+            .results-grid {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 14px;
+            }
+        }
+        .sticker-item {
+            background: var(--color-surface);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+            overflow: hidden;
+            transition: transform var(--transition), box-shadow var(--transition);
+        }
+        .sticker-item:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .sticker-item__preview {
+            aspect-ratio: 1 / 1;
+            position: relative;
+            background:
+                linear-gradient(45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(-45deg, #f1f5f9 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #f1f5f9 75%),
+                linear-gradient(-45deg, transparent 75%, #f1f5f9 75%);
+            background-size: 14px 14px;
+            background-position: 0 0, 0 7px, 7px -7px, -7px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+        }
+        .sticker-item__preview img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .sticker-item__index {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: rgba(15, 23, 42, 0.7);
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            border-radius: 999px;
+        }
+        .sticker-item__actions {
+            display: flex;
+            border-top: 1px solid var(--color-border);
+        }
+        .sticker-item__actions button {
+            flex: 1;
+            padding: 10px 4px;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--color-text-muted);
+            transition: background var(--transition), color var(--transition);
+        }
+        .sticker-item__actions button + button { border-left: 1px solid var(--color-border); }
+        .sticker-item__actions button:hover {
+            background: var(--color-primary-light);
+            color: var(--color-primary);
+        }
+
+        /* ===========================================================
+           모달 (크게 보기)
+           =========================================================== */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.85);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            animation: fadeIn 200ms ease;
+        }
+        .modal.is-active { display: flex; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal__content {
+            position: relative;
+            max-width: 100%;
+            max-height: 90vh;
+            background:
+                linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+                linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+            border-radius: var(--radius-md);
+            padding: 12px;
+        }
+        .modal__content img {
+            max-width: 80vw;
+            max-height: 70vh;
+            object-fit: contain;
+        }
+        .modal__close {
+            position: absolute;
+            top: -50px;
+            right: 0;
+            color: white;
+            font-size: 28px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* ===========================================================
+           사용 가이드 (아코디언)
+           =========================================================== */
+        .guide details {
+            background: var(--color-surface);
+            border-radius: var(--radius-md);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 10px;
+            overflow: hidden;
+        }
+        .guide summary {
+            list-style: none;
+            padding: 16px 18px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background var(--transition);
+        }
+        .guide summary::-webkit-details-marker { display: none; }
+        .guide summary:hover { background: var(--color-bg); }
+        .guide summary::after {
+            content: '▼';
+            font-size: 11px;
+            color: var(--color-text-muted);
+            transition: transform var(--transition);
+        }
+        .guide details[open] summary::after { transform: rotate(180deg); }
+        .guide__icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            margin-right: 8px;
+            font-size: 16px;
+        }
+        .guide__icon--android { background: #d1fae5; color: #065f46; }
+        .guide__icon--ios { background: #e0e7ff; color: #3730a3; }
+        .guide__icon--tip { background: #fef3c7; color: #92400e; }
+        .guide__body {
+            padding: 0 18px 18px 18px;
+            font-size: 13px;
+            color: var(--color-text-muted);
+            line-height: 1.7;
+        }
+        .guide__body ol {
+            padding-left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .guide__body strong { color: var(--color-text); }
+
+        /* ===========================================================
+           푸터
+           =========================================================== */
+        .footer {
+            text-align: center;
+            padding: 24px 16px 32px;
+            font-size: 12px;
+            color: var(--color-text-light);
+            line-height: 1.7;
+        }
+
+        /* ===========================================================
+           유틸리티
+           =========================================================== */
+        .hidden { display: none !important; }
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--color-text);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: var(--shadow-lg);
+            opacity: 0;
+            transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 200;
+            pointer-events: none;
+        }
+        .toast.is-active {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+    <!-- ============================================================
+         헤더
+         ============================================================ -->
+    <header class="header">
+        <div class="container">
+            <h1 class="header__title">
+                <span>✂️</span>
+                <span>이모티콘 자동 분할 메이커</span>
+            </h1>
+            <p class="header__subtitle">사진 한 장으로 만드는 나만의 카톡 스티커</p>
+        </div>
+    </header>
+
+    <!-- ============================================================
+         애드센스 광고 영역 (헤더 직아래)
+         실제 운영 시 아래 div 안에 <ins class="adsbygoogle" ...> 삽입
+         ============================================================ -->
+    <div class="container">
+        <!-- 여기에 애드센스 삽입 (상단 반응형 광고) -->
+        <div class="ad-slot" id="ad-top">광고 영역 (상단)</div>
+    </div>
+
+    <!-- ============================================================
+         메인 컨텐츠
+         ============================================================ -->
+    <main class="container">
+
+        <!-- 1단계: 분할 설정 -->
+        <section class="card" aria-labelledby="step1-title">
+            <h2 id="step1-title" class="card__title">
+                <span class="step-num">1</span>
+                <span>분할 설정</span>
+            </h2>
+            <div class="grid-config">
+                <div class="grid-config__item">
+                    <label for="cols-input">가로 칸수 (Cols)</label>
+                    <div class="grid-config__input-wrap">
+                        <button type="button" data-target="cols-input" data-action="dec" aria-label="가로 감소">−</button>
+                        <input type="number" id="cols-input" value="4" min="1" max="20" inputmode="numeric" />
+                        <button type="button" data-target="cols-input" data-action="inc" aria-label="가로 증가">+</button>
+                    </div>
+                </div>
+                <div class="grid-config__item">
+                    <label for="rows-input">세로 칸수 (Rows)</label>
+                    <div class="grid-config__input-wrap">
+                        <button type="button" data-target="rows-input" data-action="dec" aria-label="세로 감소">−</button>
+                        <input type="number" id="rows-input" value="5" min="1" max="20" inputmode="numeric" />
+                        <button type="button" data-target="rows-input" data-action="inc" aria-label="세로 증가">+</button>
+                    </div>
+                </div>
+            </div>
+            <p class="grid-config__hint">총 <strong id="total-count">20</strong>개의 스티커가 생성됩니다.</p>
+        </section>
+
+        <!-- 2단계: 이미지 업로드 -->
+        <section class="card" aria-labelledby="step2-title">
+            <h2 id="step2-title" class="card__title">
+                <span class="step-num">2</span>
+                <span>이미지 업로드</span>
+            </h2>
+            <div class="upload-area" id="upload-area">
+                <div class="upload-area__icon">📤</div>
+                <div class="upload-area__title">탭하여 이미지 선택</div>
+                <div class="upload-area__hint">또는 이곳에 파일을 끌어다 놓으세요 (JPG / PNG)</div>
+                <span class="upload-area__paste-hint">
+                    <kbd>Ctrl</kbd>+<kbd>V</kbd> / <kbd>⌘</kbd>+<kbd>V</kbd> 로 붙여넣기도 가능
+                </span>
+                <input type="file" id="file-input" accept="image/*" />
+            </div>
+            <div class="preview-wrap" id="preview-wrap">
+                <img id="preview-img" alt="업로드 이미지 미리보기" />
+                <div class="preview-grid-overlay" id="preview-grid-overlay" aria-hidden="true"></div>
+            </div>
+        </section>
+
+        <!-- 3단계: 투명화 모드 + 분할 실행 -->
+        <section class="card" aria-labelledby="step3-title">
+            <h2 id="step3-title" class="card__title">
+                <span class="step-num">3</span>
+                <span>투명화 모드 선택 → 분할</span>
+            </h2>
+
+            <!-- 모드 선택 (라디오) -->
+            <div class="mode-group" role="radiogroup" aria-label="투명화 모드">
+                <input type="radio" name="mode" id="mode-a" value="A" checked />
+                <label for="mode-a">
+                    <span class="mode-emoji">🎨</span>
+                    <span class="mode-title">스티커 모드</span>
+                    <span class="mode-desc">외곽 흰색만 투명화<br>(글씨/테두리 보존)</span>
+                </label>
+                <input type="radio" name="mode" id="mode-b" value="B" />
+                <label for="mode-b">
+                    <span class="mode-emoji">🤖</span>
+                    <span class="mode-title">AI 누끼 모드</span>
+                    <span class="mode-desc">AI가 피사체만 추출<br>(첫 사용 시 모델 다운로드)</span>
+                </label>
+            </div>
+
+            <button type="button" class="btn btn--primary" id="run-btn" disabled>
+                <span>✨</span>
+                <span>분할 시작</span>
+            </button>
+            <div class="progress-wrap" id="progress-wrap">
+                <div class="progress-status">
+                    <span class="progress-spinner"></span>
+                    <span id="progress-status-text">준비 중…</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-bar__fill" id="progress-bar-fill"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4단계: 결과물 -->
+        <section class="card results-section" id="results-section" aria-labelledby="step4-title">
+            <h2 id="step4-title" class="card__title">
+                <span class="step-num">4</span>
+                <span>결과물</span>
+            </h2>
+            <div class="results-header">
+                <div class="results-header__count">총 <strong id="result-count">0</strong>개의 스티커</div>
+                <div class="results-actions">
+                    <button type="button" class="btn btn--ghost" id="reset-btn">↺ 다시</button>
+                </div>
+            </div>
+
+            <!-- 전체 개별 순차 다운로드 -->
+            <div class="download-all-wrap">
+                <button type="button" class="btn btn--success" id="download-all-btn">
+                    <span>⬇️</span>
+                    <span id="download-all-btn-text">전체 개별 다운로드</span>
+                </button>
+                <p class="download-warning">
+                    ※ 브라우저 설정에 따라 <strong>'다중 파일 다운로드 허용'</strong> 팝업이 뜰 수 있습니다.
+                    반드시 <strong>'허용'</strong>을 눌러주세요.
+                </p>
+            </div>
+
+            <div class="results-grid" id="results-grid"></div>
+        </section>
+
+        <!-- 사용 가이드 (아코디언) -->
+        <section class="guide" aria-label="스티커 등록 가이드">
+            <h2 class="card__title" style="padding: 0 4px;">
+                <span>📖</span>
+                <span>스티커 사용 가이드</span>
+            </h2>
+
+            <details>
+                <summary>
+                    <span style="display:flex;align-items:center;">
+                        <span class="guide__icon guide__icon--android">🤖</span>
+                        안드로이드 (삼성 키보드)
+                    </span>
+                </summary>
+                <div class="guide__body">
+                    <ol>
+                        <li><strong>PNG 다운로드</strong> — 분할된 스티커를 기기에 저장</li>
+                        <li><strong>삼성 키보드 → 클립보드</strong> 열기</li>
+                        <li>클립보드 우측 상단 ✏️ <strong>편집</strong> → 갤러리에서 PNG 선택 → <strong>📌 핀(고정)</strong></li>
+                        <li>카카오톡 등 채팅창에서 <strong>클립보드를 열고 이미지 탭</strong> → 스티커처럼 전송!</li>
+                    </ol>
+                </div>
+            </details>
+
+            <details>
+                <summary>
+                    <span style="display:flex;align-items:center;">
+                        <span class="guide__icon guide__icon--ios">🍎</span>
+                        아이폰 (iMessage / 카카오톡)
+                    </span>
+                </summary>
+                <div class="guide__body">
+                    <ol>
+                        <li><strong>PNG 다운로드</strong> — 분할된 스티커를 사진 앱에 저장</li>
+                        <li>갤러리에서 사진을 열고 <strong>공유 → 사진 복사</strong></li>
+                        <li><strong>카카오톡 대화창에 붙여넣기</strong> → 스티커처럼 전송</li>
+                        <li>또는 메시지 앱에서 <strong>iMessage 스티커</strong>로 등록하여 사용!</li>
+                    </ol>
+                </div>
+            </details>
+
+            <details>
+                <summary>
+                    <span style="display:flex;align-items:center;">
+                        <span class="guide__icon guide__icon--tip">💡</span>
+                        더 좋은 결과를 얻으려면?
+                    </span>
+                </summary>
+                <div class="guide__body">
+                    <ol>
+                        <li><strong>스티커 모드</strong>는 <strong>흰색 배경</strong> + 글씨/테두리가 있는 이모티콘 시트에 최적입니다.</li>
+                        <li><strong>AI 누끼 모드</strong>는 복잡한 배경에서 <strong>인물/캐릭터</strong>만 추출할 때 유용합니다.</li>
+                        <li>격자가 정확히 맞아야 깔끔하게 분할됩니다 — 가로/세로 칸 수를 원본과 맞춰주세요.</li>
+                        <li>모든 처리는 <strong>브라우저 안에서만</strong> 이루어지며 이미지가 외부로 전송되지 않습니다.</li>
+                    </ol>
+                </div>
+            </details>
+        </section>
+
+    </main>
+
+    <!-- ============================================================
+         애드센스 광고 영역 (푸터 직위)
+         ============================================================ -->
+    <div class="container">
+        <!-- 여기에 애드센스 삽입 (하단 반응형 광고) -->
+        <div class="ad-slot" id="ad-bottom">광고 영역 (하단)</div>
+    </div>
+
+    <!-- ============================================================
+         푸터
+         ============================================================ -->
+    <footer class="footer">
+        <div class="container">
+            <div>© 2026 이모티콘 자동 분할 메이커</div>
+            <div style="margin-top:4px;">모든 처리는 브라우저 안에서만 이루어지며, 이미지가 외부로 전송되지 않습니다.</div>
+        </div>
+    </footer>
+
+    <!-- 크게 보기 모달 -->
+    <div class="modal" id="modal">
+        <div class="modal__content">
+            <button type="button" class="modal__close" id="modal-close" aria-label="닫기">×</button>
+            <img id="modal-img" alt="확대 보기" />
+        </div>
+    </div>
+
+    <!-- 토스트 -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+    /* ================================================================
+       이모티콘 자동 분할 메이커 — 메인 스크립트
+       ----------------------------------------------------------------
+       흐름:
+         1) 사용자가 가로/세로 칸 수를 입력
+         2) 이미지를 업로드 (드래그&드롭 / 클릭 / Ctrl+V 붙여넣기)
+         3) 투명화 모드 선택 (A: 스티커 모드 / B: AI 누끼 모드)
+         4) [분할 시작] 버튼 클릭
+         5) Canvas API 로 가로*세로 칸으로 균등 분할 (깍둑썰기)
+         6) 각 칸에 모드별 투명화 적용
+            - A: 외곽에서부터 흰색에 가까운 픽셀만 BFS Flood-fill 로 투명화
+            - B: @imgly/background-removal 로 AI 누끼
+         7) 각 결과의 투명 픽셀 외곽 여백 자동 Trim
+         8) 1:1 정사각형 캔버스 가운데 배치 → PNG Blob 생성
+         9) 결과 그리드 표시
+         10) 전체 개별 순차 다운로드 (0.4초 간격, 팝업 차단 우회)
+       ================================================================ */
+    (() => {
+        'use strict';
+
+        // ------ 1. DOM 요소 참조 ------
+        const $ = (id) => document.getElementById(id);
+        const colsInput      = $('cols-input');
+        const rowsInput      = $('rows-input');
+        const totalCountEl   = $('total-count');
+        const uploadArea     = $('upload-area');
+        const fileInput      = $('file-input');
+        const previewWrap    = $('preview-wrap');
+        const previewImg     = $('preview-img');
+        const previewGridEl  = $('preview-grid-overlay');
+        const runBtn         = $('run-btn');
+        const progressWrap   = $('progress-wrap');
+        const progressText   = $('progress-status-text');
+        const progressFill   = $('progress-bar-fill');
+        const resultsSection = $('results-section');
+        const resultsGrid    = $('results-grid');
+        const resultCountEl  = $('result-count');
+        const downloadAllBtn = $('download-all-btn');
+        const downloadAllBtnText = $('download-all-btn-text');
+        const resetBtn       = $('reset-btn');
+        const modal          = $('modal');
+        const modalImg       = $('modal-img');
+        const modalClose     = $('modal-close');
+        const toastEl        = $('toast');
+
+        // ------ 2. 상태 ------
+        let uploadedFile = null;       // 사용자가 업로드한 원본 File 객체
+        let stickerBlobs = [];         // 분할 완성된 PNG Blob 배열 ({blob, url, name})
+        let isDownloadingAll = false;  // 전체 다운로드 진행 중 여부 (중복 방지)
+
+        // ------ 3. 유틸 ------
+        /** 토스트 메시지 잠깐 띄우기 */
+        function toast(msg, ms = 2000) {
+            toastEl.textContent = msg;
+            toastEl.classList.add('is-active');
+            clearTimeout(toast._t);
+            toast._t = setTimeout(() => toastEl.classList.remove('is-active'), ms);
+        }
+
+        /** 진행률 UI 갱신 */
+        function setProgress(percent, text) {
+            progressWrap.classList.add('is-active');
+            progressFill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+            if (text != null) progressText.textContent = text;
+        }
+        function hideProgress() {
+            progressWrap.classList.remove('is-active');
+            progressFill.style.width = '0%';
+        }
+
+        /** 정수 입력값을 안전하게 읽기 (clamp) */
+        function readIntInput(el, fallback, min, max) {
+            let v = parseInt(el.value, 10);
+            if (!Number.isFinite(v)) v = fallback;
+            v = Math.max(min, Math.min(max, v));
+            el.value = String(v);
+            return v;
+        }
+
+        /** 미리보기 영역 위에 분할선 그리드 오버레이 그리기 */
+        function renderPreviewGridOverlay() {
+            const cols = readIntInput(colsInput, 4, 1, 20);
+            const rows = readIntInput(rowsInput, 5, 1, 20);
+            previewGridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+            previewGridEl.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
+            previewGridEl.innerHTML = '<div></div>'.repeat(cols * rows);
+            totalCountEl.textContent = String(cols * rows);
+        }
+
+        /** [실행] 버튼 활성화 여부 */
+        function refreshRunBtn() {
+            runBtn.disabled = !uploadedFile;
+        }
+
+        // ------ 4. 칸수 입력 (+/− 버튼 + 직접입력) ------
+        document.querySelectorAll('[data-action]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const target = $(btn.dataset.target);
+                const min = parseInt(target.min, 10) || 1;
+                const max = parseInt(target.max, 10) || 20;
+                let v = parseInt(target.value, 10) || 1;
+                v += btn.dataset.action === 'inc' ? 1 : -1;
+                v = Math.max(min, Math.min(max, v));
+                target.value = String(v);
+                renderPreviewGridOverlay();
+            });
+        });
+        [colsInput, rowsInput].forEach((el) => {
+            el.addEventListener('input', renderPreviewGridOverlay);
+            el.addEventListener('blur', renderPreviewGridOverlay);
+        });
+
+        // ------ 5. 이미지 입력: 클릭 + 드래그&드롭 + 클립보드 ------
+        function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) {
+                toast('이미지 파일만 업로드할 수 있어요');
+                return;
+            }
+            uploadedFile = file;
+            const url = URL.createObjectURL(file);
+            previewImg.src = url;
+            previewImg.onload = () => {
+                previewWrap.classList.add('is-active');
+                renderPreviewGridOverlay();
+            };
+            refreshRunBtn();
+            toast('이미지가 업로드되었어요!');
+        }
+        // 5-1) 파일 input
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files[0]) handleFile(e.target.files[0]);
+        });
+        // 5-2) 드래그 & 드롭
+        ['dragenter', 'dragover'].forEach((evt) => {
+            uploadArea.addEventListener(evt, (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'drop'].forEach((evt) => {
+            uploadArea.addEventListener(evt, (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('is-dragover');
+            });
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            const files = e.dataTransfer && e.dataTransfer.files;
+            if (files && files[0]) handleFile(files[0]);
+        });
+        // 5-3) 클립보드 붙여넣기 (Ctrl+V / Cmd+V)
+        window.addEventListener('paste', (e) => {
+            if (!e.clipboardData) return;
+            const items = e.clipboardData.items;
+            for (const item of items) {
+                if (item.type && item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    if (blob) {
+                        handleFile(blob);
+                        e.preventDefault();
+                    }
+                    break;
+                }
+            }
+        });
+
+        // ------ 6. 핵심 처리: 분할 → 모드별 투명화 → Trim → 정사각화 ------
+        runBtn.addEventListener('click', async () => {
+            if (!uploadedFile) return;
+
+            try {
+                // (a) 결과 영역 초기화 & UI 잠금
+                clearResults();
+                runBtn.disabled = true;
+                const originalRunHtml = runBtn.innerHTML;
+                runBtn.innerHTML = '<span class="progress-spinner" style="border-color:rgba(255,255,255,0.3);border-top-color:white;"></span><span>처리 중…</span>';
+
+                // (b) 파일 → HTMLImageElement
+                setProgress(2, '이미지 읽는 중…');
+                const sourceImg = await fileToImage(uploadedFile);
+
+                // (c) 가로 * 세로로 균등 분할 (깍둑썰기)
+                const cols = readIntInput(colsInput, 4, 1, 20);
+                const rows = readIntInput(rowsInput, 5, 1, 20);
+                const total = cols * rows;
+                const pieces = sliceImage(sourceImg, cols, rows);
+                setProgress(8, '분할 완료. 투명화 처리 중…');
+
+                // (d) 선택된 모드
+                const mode = (document.querySelector('input[name="mode"]:checked') || {}).value || 'A';
+
+                // (e) 각 조각마다 처리
+                const blobs = [];
+                for (let i = 0; i < pieces.length; i++) {
+                    const piece = pieces[i];
+
+                    // 모드별 투명화
+                    let processed;
+                    if (mode === 'A') {
+                        // 스티커 모드: 외곽 흰색 Flood-fill
+                        processed = applyStickerMode(piece);
+                    } else {
+                        // AI 누끼 모드: @imgly 라이브러리 호출
+                        processed = await applyAIMode(piece, (subPct) => {
+                            // 모델 다운로드/추론 진행률 (i번째 조각의 sub-progress)
+                            const base = 8 + Math.round((i / total) * 85);
+                            const span = Math.round((1 / total) * 85);
+                            setProgress(base + Math.round(subPct * span / 100),
+                                        `AI 처리 중… (${i + 1}/${total})`);
+                        });
+                    }
+
+                    // 투명 외곽 Trim → 1:1 정사각화
+                    const square = trimAndSquare(processed);
+
+                    // PNG Blob
+                    const blob = await new Promise((resolve) =>
+                        square.toBlob(resolve, 'image/png')
+                    );
+                    if (blob) {
+                        const url = URL.createObjectURL(blob);
+                        const idx = i + 1;
+                        const name = `emoticon_${String(idx).padStart(3, '0')}.png`;
+                        blobs.push({ blob, url, name });
+                    }
+
+                    // 진행률
+                    const pct = 8 + Math.round(((i + 1) / total) * 90);
+                    setProgress(pct, `${total}개 중 ${i + 1}개 처리 중…`);
+
+                    // 메인 스레드 양보
+                    if ((i + 1) % 3 === 0) await new Promise(r => setTimeout(r, 0));
+                }
+
+                // (f) 결과 표시
+                stickerBlobs = blobs;
+                renderResults();
+                setProgress(100, `완료! ${blobs.length}개 생성됨 ✓`);
+                setTimeout(hideProgress, 800);
+
+                runBtn.innerHTML = originalRunHtml;
+
+            } catch (err) {
+                console.error(err);
+                hideProgress();
+                toast('처리 중 오류가 발생했어요. 다른 이미지로 다시 시도해 주세요');
+                alert('오류: ' + (err && err.message ? err.message : String(err)));
+                runBtn.innerHTML = '<span>✨</span><span>분할 시작</span>';
+            } finally {
+                refreshRunBtn();
+            }
+        });
+
+        /** File → HTMLImageElement */
+        function fileToImage(file) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => reject(new Error('이미지 디코딩 실패'));
+                img.src = url;
+            });
+        }
+
+        /** Blob → HTMLImageElement */
+        function blobToImage(blob) {
+            return new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                img.onload = () => { resolve(img); /* url은 재사용되므로 즉시 해제하지 않음 */ };
+                img.onerror = () => reject(new Error('이미지 디코딩 실패'));
+                img.src = url;
+            });
+        }
+
+        /**
+         * 이미지를 cols × rows 격자로 자르기 (깍둑썰기)
+         * @param {HTMLImageElement} img
+         * @param {number} cols
+         * @param {number} rows
+         * @returns {HTMLCanvasElement[]}
+         */
+        function sliceImage(img, cols, rows) {
+            const W = img.naturalWidth;
+            const H = img.naturalHeight;
+            const cellW = W / cols;
+            const cellH = H / rows;
+
+            const pieces = [];
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const sx = Math.round(c * cellW);
+                    const sy = Math.round(r * cellH);
+                    const sw = Math.round((c + 1) * cellW) - sx;
+                    const sh = Math.round((r + 1) * cellH) - sy;
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = sw;
+                    canvas.height = sh;
+                    canvas.getContext('2d', { willReadFrequently: true })
+                          .drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+                    pieces.push(canvas);
+                }
+            }
+            return pieces;
+        }
+
+        /**
+         * [모드 A] 스티커 모드 — 외곽 흰색만 Flood-fill 로 투명화
+         * - 4 가장자리에서 시작해 BFS 로 확장
+         * - 흰색에 가까운 픽셀(R/G/B 모두 임계값 이상)만 alpha=0
+         * - 글씨/내부 흰색/테두리는 보존됨
+         */
+        function applyStickerMode(canvas) {
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
+            const w = canvas.width, h = canvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h);
+            const data = imgData.data;
+            const THRESHOLD = 235;        // R,G,B 임계값 (이상이면 흰색 후보)
+            const visited = new Uint8Array(w * h);
+
+            // 흰색 후보 판정
+            const isWhitish = (di) =>
+                data[di] >= THRESHOLD && data[di + 1] >= THRESHOLD && data[di + 2] >= THRESHOLD;
+
+            // BFS 큐 (Array로 head/tail 관리해 shift 비용 회피)
+            const queue = new Int32Array(w * h * 2);
+            let qHead = 0, qTail = 0;
+            const push = (x, y) => {
+                queue[qTail++] = x;
+                queue[qTail++] = y;
+            };
+
+            // 가장자리 픽셀을 시드로 큐에 투입
+            for (let x = 0; x < w; x++) { push(x, 0); push(x, h - 1); }
+            for (let y = 0; y < h; y++) { push(0, y); push(w - 1, y); }
+
+            while (qHead < qTail) {
+                const x = queue[qHead++];
+                const y = queue[qHead++];
+                if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                const pi = y * w + x;
+                if (visited[pi]) continue;
+                visited[pi] = 1;
+                const di = pi * 4;
+                if (!isWhitish(di)) continue;
+
+                // 투명 처리
+                data[di + 3] = 0;
+
+                // 4방향 확장 (큐 크기 보장: 미리 잡아둔 버퍼가 모자라면 확장)
+                if (qTail + 8 > queue.length) {
+                    // (드물지만) 버퍼가 모자라면 일반 배열로 폴백
+                    const arr = Array.from(queue.subarray(qHead, qTail));
+                    arr.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+                    return floodFillFallback(canvas, imgData, arr, visited, isWhitish, data, w, h);
+                }
+                push(x + 1, y);
+                push(x - 1, y);
+                push(x, y + 1);
+                push(x, y - 1);
+            }
+
+            ctx.putImageData(imgData, 0, 0);
+            return canvas;
+        }
+
+        /** 매우 큰 이미지에서 큐 버퍼가 모자랄 때의 안전 폴백 */
+        function floodFillFallback(canvas, imgData, queueArr, visited, isWhitish, data, w, h) {
+            while (queueArr.length > 0) {
+                const y = queueArr.pop();
+                const x = queueArr.pop();
+                if (x < 0 || x >= w || y < 0 || y >= h) continue;
+                const pi = y * w + x;
+                if (visited[pi]) continue;
+                visited[pi] = 1;
+                const di = pi * 4;
+                if (!isWhitish(di)) continue;
+                data[di + 3] = 0;
+                queueArr.push(x + 1, y, x - 1, y, x, y + 1, x, y - 1);
+            }
+            canvas.getContext('2d').putImageData(imgData, 0, 0);
+            return canvas;
+        }
+
+        /**
+         * [모드 B] AI 누끼 모드 — @imgly/background-removal 사용
+         * - 라이브러리는 전역 함수로 노출됨 (imglyRemoveBackground 또는 removeBackground)
+         */
+        async function applyAIMode(canvas, onSubProgress) {
+            // 라이브러리가 노출하는 전역 함수 탐색
+            const removeBg = window.imglyRemoveBackground
+                          || window.removeBackground
+                          || (window.imgly && window.imgly.removeBackground);
+
+            if (typeof removeBg !== 'function') {
+                throw new Error('AI 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.');
+            }
+
+            // 캔버스 → Blob
+            const inputBlob = await new Promise((resolve) =>
+                canvas.toBlob(resolve, 'image/png')
+            );
+
+            // 배경 제거 실행
+            const outBlob = await removeBg(inputBlob, {
+                progress: (key, current, total) => {
+                    if (total > 0 && typeof onSubProgress === 'function') {
+                        onSubProgress((current / total) * 100);
+                    }
+                }
+            });
+
+            // Blob → 캔버스
+            const outImg = await blobToImage(outBlob);
+            const out = document.createElement('canvas');
+            out.width = outImg.naturalWidth;
+            out.height = outImg.naturalHeight;
+            out.getContext('2d').drawImage(outImg, 0, 0);
+            return out;
+        }
+
+        /**
+         * 캔버스의 투명한 외곽 여백을 잘라내고
+         * 가장 긴 변 기준 정사각형 캔버스 가운데 배치하여 반환
+         */
+        function trimAndSquare(src) {
+            const w = src.width, h = src.height;
+            const ctx = src.getContext('2d', { willReadFrequently: true });
+            const data = ctx.getImageData(0, 0, w, h).data;
+
+            // alpha > 임계값 영역의 bounding box
+            let minX = w, minY = h, maxX = -1, maxY = -1;
+            const ALPHA_THRESHOLD = 8;
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const a = data[(y * w + x) * 4 + 3];
+                    if (a > ALPHA_THRESHOLD) {
+                        if (x < minX) minX = x;
+                        if (y < minY) minY = y;
+                        if (x > maxX) maxX = x;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            // 빈 칸 → 작은 투명 캔버스 (인덱스 어긋나지 않게)
+            if (maxX < 0) {
+                const empty = document.createElement('canvas');
+                empty.width = empty.height = 32;
+                return empty;
+            }
+
+            const trimW = maxX - minX + 1;
+            const trimH = maxY - minY + 1;
+
+            // 정사각형 변 길이 = 긴 쪽 + 5% 여백
+            const longSide = Math.max(trimW, trimH);
+            const padding = Math.round(longSide * 0.05);
+            const side = longSide + padding * 2;
+
+            const out = document.createElement('canvas');
+            out.width = side;
+            out.height = side;
+            const outCtx = out.getContext('2d');
+            outCtx.imageSmoothingEnabled = true;
+            outCtx.imageSmoothingQuality = 'high';
+
+            // 가운데 배치
+            const dx = Math.round((side - trimW) / 2);
+            const dy = Math.round((side - trimH) / 2);
+            outCtx.drawImage(src, minX, minY, trimW, trimH, dx, dy, trimW, trimH);
+
+            return out;
+        }
+
+        // ------ 7. 결과 그리드 렌더링 ------
+        function clearResults() {
+            stickerBlobs.forEach((s) => URL.revokeObjectURL(s.url));
+            stickerBlobs = [];
+            resultsGrid.innerHTML = '';
+            resultsSection.classList.remove('is-active');
+        }
+
+        function renderResults() {
+            resultsGrid.innerHTML = '';
+            stickerBlobs.forEach((s, i) => {
+                const item = document.createElement('div');
+                item.className = 'sticker-item';
+                item.innerHTML = `
+                    <div class="sticker-item__preview">
+                        <span class="sticker-item__index">#${i + 1}</span>
+                        <img src="${s.url}" alt="스티커 ${i + 1}" loading="lazy" />
+                    </div>
+                    <div class="sticker-item__actions">
+                        <button type="button" data-act="zoom" data-idx="${i}">🔍 크게 보기</button>
+                        <button type="button" data-act="dl" data-idx="${i}">⬇ 다운로드</button>
+                    </div>
+                `;
+                resultsGrid.appendChild(item);
+            });
+            resultCountEl.textContent = String(stickerBlobs.length);
+            resultsSection.classList.add('is-active');
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // 이벤트 위임 (개별 다운로드 / 크게 보기)
+        resultsGrid.addEventListener('click', (e) => {
+            const btn = e.target.closest('button[data-act]');
+            if (!btn) return;
+            const idx = parseInt(btn.dataset.idx, 10);
+            const item = stickerBlobs[idx];
+            if (!item) return;
+            if (btn.dataset.act === 'dl') downloadOne(item.url, item.name);
+            else if (btn.dataset.act === 'zoom') openModal(item.url);
+        });
+
+        // ------ 8. 다운로드 (개별 / 전체 순차) ------
+        /** <a> 태그를 만들어 클릭하여 다운로드 트리거 */
+        function downloadOne(url, filename) {
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+
+        /**
+         * 전체 개별 순차 다운로드
+         * - JSZip 사용하지 않음 (모바일에서 압축해제 불편 방지)
+         * - 약 0.4초(400ms) 간격으로 순차 트리거하여 브라우저 다중 다운로드 차단 우회
+         */
+        downloadAllBtn.addEventListener('click', async () => {
+            if (!stickerBlobs.length || isDownloadingAll) return;
+
+            isDownloadingAll = true;
+            downloadAllBtn.disabled = true;
+            const total = stickerBlobs.length;
+
+            try {
+                for (let i = 0; i < total; i++) {
+                    downloadAllBtnText.textContent = `다운로드 중 (${i + 1}/${total})...`;
+                    downloadOne(stickerBlobs[i].url, stickerBlobs[i].name);
+                    // 0.4초 간격 (마지막 항목은 대기 불필요)
+                    if (i < total - 1) {
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                }
+                downloadAllBtnText.textContent = '✅ 전체 다운로드 완료!';
+                // 2초 뒤 원래 상태로 복구
+                setTimeout(() => {
+                    downloadAllBtnText.textContent = '전체 개별 다운로드';
+                    downloadAllBtn.disabled = false;
+                    isDownloadingAll = false;
+                }, 2000);
+            } catch (err) {
+                console.error(err);
+                toast('다운로드 중 오류가 발생했어요');
+                downloadAllBtnText.textContent = '전체 개별 다운로드';
+                downloadAllBtn.disabled = false;
+                isDownloadingAll = false;
+            }
+        });
+
+        // ------ 9. 다시 시작 ------
+        resetBtn.addEventListener('click', () => {
+            clearResults();
+            uploadedFile = null;
+            fileInput.value = '';
+            previewImg.src = '';
+            previewWrap.classList.remove('is-active');
+            refreshRunBtn();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+
+        // ------ 10. 모달 (크게 보기) ------
+        function openModal(src) {
+            modalImg.src = src;
+            modal.classList.add('is-active');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal() {
+            modal.classList.remove('is-active');
+            document.body.style.overflow = '';
+        }
+        modalClose.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+        // ------ 11. 초기 렌더 ------
+        renderPreviewGridOverlay();
+    })();
+    </script>
+</body>
+</html>
