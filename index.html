@@ -1158,8 +1158,9 @@
 
                     let processed = applyStickerMode(piece);
 
-                    // 연결 요소 분석(CCA) — 메인 피사체만 남기고 옆 스티커 찌꺼기는 모두 투명화
-                    processed = keepLargestComponent(processed);
+                    // CCA + centroid 위치 분석 — 메인 + 셀 중앙 코어 컴포넌트는 보존,
+                    // 외곽 버퍼에 있는 옆 셀 침범 조각만 투명화
+                    processed = cleanupNeighborFragments(processed);
 
                     // 투명 외곽 Trim → 1:1 정사각화
                     const square = trimAndSquare(processed);
@@ -1223,11 +1224,16 @@
                                     (균등분할 ±35% 범위 내 가장 긴 갭의 중앙)
              3) sliceWithOverlap  — 셀 영역 ±12% 버퍼 포함하여 슬라이싱
                                     (이웃 글씨·데코레이션 보호)
-             4) (후속) keepLargestComponent — CCA 로 메인 피사체만 남기고 모두 투명화
+             4) (후속) cleanupNeighborFragments — CCA + centroid 위치 기반으로
+                                                   옆 셀 침범 조각만 제거 (글씨/장식 보존)
            ============================================================ */
 
-        const BG_THRESHOLD = 235;   // R/G/B 모두 이 값 이상이면 흰색 배경 후보
-        const ALPHA_MIN    = 8;     // 알파가 이 값 이하면 투명으로 간주
+        const BG_THRESHOLD  = 235;   // R/G/B 모두 이 값 이상이면 흰색 배경 후보
+        const ALPHA_MIN     = 8;     // 알파가 이 값 이하면 투명으로 간주
+        const OVERLAP_RATIO = 0.12;  // 셀 분할 시 ±12% 버퍼 (글씨/데코 보호용)
+        // CCA 시 "셀 중앙 코어" 마진 — 버퍼 영역(외곽 12%) 약간 안쪽까지 보호하기 위해 8%로 설정
+        // (이 값보다 안쪽에 centroid 가 있는 컴포넌트는 이 셀의 콘텐츠로 간주하여 보존)
+        const CORE_MARGIN   = 0.08;
 
         /** 한 픽셀이 배경(흰색에 가깝거나 투명)인지 판정 */
         function isBackgroundPixel(data, di) {
@@ -1375,7 +1381,6 @@
 
             // 2단계: ±12% 버퍼 포함 슬라이싱 (글씨/데코레이션 보호)
             if (onProgress) onProgress('버퍼 포함 셀 분할 중…', 7);
-            const OVERLAP_RATIO = 0.12;
             const W = trimmed.width, H = trimmed.height;
             const pieces = [];
             for (let r = 0; r < rows; r++) {
@@ -1403,35 +1408,49 @@
         }
 
         /**
-         * 연결 요소 분석(CCA) — 메인 피사체만 남기기
-         * - 비투명 픽셀의 4-connectivity 연결 컴포넌트를 모두 라벨링
-         * - 픽셀 수가 가장 많은 단일 덩어리(메인 피사체)를 식별
-         * - 그 외 모든 덩어리(허공에 뜬 옆 스티커 찌꺼기·노이즈)는 alpha=0
-         * - Iterative DFS + 사전 할당 Int32Array 스택으로 큰 캔버스에서도 안전
+         * 연결 요소 분석(CCA) + 위치 기반 노이즈 제거
+         * ──────────────────────────────────────────────────
+         * 목표: 메인 피사체와 분리된 글씨/말풍선/장식은 보존하면서,
+         *      옆 셀에서 침범한 가장자리 찌꺼기만 제거.
+         *
+         * 알고리즘:
+         *  1) 비투명 픽셀의 4-connectivity 컴포넌트를 모두 라벨링
+         *     (각 컴포넌트의 size + centroid 계산)
+         *  2) 가장 큰 컴포넌트(메인 피사체)는 무조건 보존
+         *  3) 그 외 컴포넌트는 centroid 가
+         *     - "셀 중앙 코어"(외곽 CORE_MARGIN 제외) 안에 있으면 → 보존
+         *       (이 셀의 글씨/장식 등으로 간주)
+         *     - 외곽 버퍼 영역에 있으면 → alpha=0
+         *       (옆 셀에서 침범한 노이즈로 간주)
+         *  4) 사전 할당 Int32Array 스택 + iterative DFS 로 큰 캔버스 안전
          */
-        function keepLargestComponent(canvas) {
+        function cleanupNeighborFragments(canvas) {
             const w = canvas.width, h = canvas.height;
             const total = w * h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const imgData = ctx.getImageData(0, 0, w, h);
             const data = imgData.data;
 
-            // labels[i] = 0 (미방문/투명), >=1 (해당 컴포넌트 ID)
             const labels = new Int32Array(total);
             const stack  = new Int32Array(total);
+            // 컴포넌트 메타: id, size, centroid 누적 (cxSum, cySum)
+            const compIds   = [];
+            const compSizes = [];
+            const compCxSum = [];
+            const compCySum = [];
             let nextId = 1;
-            let mainId = 0, mainSize = 0;
 
             for (let p0 = 0; p0 < total; p0++) {
                 if (labels[p0] !== 0) continue;
                 if (data[p0 * 4 + 3] <= ALPHA_MIN) continue;
 
-                // 새 컴포넌트 시작
                 const id = nextId++;
-                let size = 0;
+                let size = 0, cxSum = 0, cySum = 0;
                 let sp = 0;
                 labels[p0] = id;
                 size++;
+                cxSum += p0 % w;
+                cySum += (p0 / w) | 0;
                 stack[sp++] = p0;
 
                 while (sp > 0) {
@@ -1442,41 +1461,67 @@
                     if (x + 1 < w) {
                         np = p + 1;
                         if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
-                            labels[np] = id; size++; stack[sp++] = np;
+                            labels[np] = id; size++; cxSum += (x + 1); cySum += y; stack[sp++] = np;
                         }
                     }
                     if (x > 0) {
                         np = p - 1;
                         if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
-                            labels[np] = id; size++; stack[sp++] = np;
+                            labels[np] = id; size++; cxSum += (x - 1); cySum += y; stack[sp++] = np;
                         }
                     }
                     if (y + 1 < h) {
                         np = p + w;
                         if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
-                            labels[np] = id; size++; stack[sp++] = np;
+                            labels[np] = id; size++; cxSum += x; cySum += (y + 1); stack[sp++] = np;
                         }
                     }
                     if (y > 0) {
                         np = p - w;
                         if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
-                            labels[np] = id; size++; stack[sp++] = np;
+                            labels[np] = id; size++; cxSum += x; cySum += (y - 1); stack[sp++] = np;
                         }
                     }
                 }
 
-                if (size > mainSize) {
-                    mainSize = size;
-                    mainId = id;
-                }
+                compIds.push(id);
+                compSizes.push(size);
+                compCxSum.push(cxSum);
+                compCySum.push(cySum);
             }
 
-            // 컴포넌트 0개 또는 1개만 있으면 손댈 것 없음
-            if (mainId === 0 || nextId === 2) return canvas;
+            // 0개 또는 1개 컴포넌트면 노이즈 처리 불필요
+            if (compIds.length <= 1) return canvas;
 
-            // 메인 외 모든 덩어리 → 완전 투명 (alpha=0)
+            // 가장 큰 컴포넌트(메인 피사체) 식별 — 항상 보존
+            let mainIdx = 0;
+            for (let i = 1; i < compSizes.length; i++) {
+                if (compSizes[i] > compSizes[mainIdx]) mainIdx = i;
+            }
+
+            // 셀 중앙 코어 영역 [coreMinX, coreMaxX] × [coreMinY, coreMaxY]
+            const coreMinX = w * CORE_MARGIN;
+            const coreMaxX = w * (1 - CORE_MARGIN);
+            const coreMinY = h * CORE_MARGIN;
+            const coreMaxY = h * (1 - CORE_MARGIN);
+
+            // 보존할 컴포넌트 ID 집합 (메인 + centroid 코어 안)
+            const keepFlag = new Uint8Array(nextId);  // index = component id
+            keepFlag[compIds[mainIdx]] = 1;
+
+            for (let i = 0; i < compIds.length; i++) {
+                if (i === mainIdx) continue;
+                const cx = compCxSum[i] / compSizes[i];
+                const cy = compCySum[i] / compSizes[i];
+                if (cx >= coreMinX && cx <= coreMaxX && cy >= coreMinY && cy <= coreMaxY) {
+                    keepFlag[compIds[i]] = 1;  // 셀 중앙 코어 안 → 이 셀의 콘텐츠로 보존
+                }
+                // else: 외곽 버퍼 영역의 fragment → alpha=0 처리
+            }
+
             for (let i = 0; i < total; i++) {
-                if (labels[i] !== mainId) {
+                const lbl = labels[i];
+                if (lbl !== 0 && !keepFlag[lbl]) {
                     data[i * 4 + 3] = 0;
                 }
             }
@@ -1599,9 +1644,9 @@
             const trimW = maxX - minX + 1;
             const trimH = maxY - minY + 1;
 
-            // 정사각형 변 길이 = 긴 쪽 + 5% 여백
+            // 정사각형 변 길이 = 긴 쪽 + 12% 여백 (글씨가 캔버스에 바짝 붙지 않도록 넉넉히)
             const longSide = Math.max(trimW, trimH);
-            const padding = Math.round(longSide * 0.05);
+            const padding = Math.round(longSide * 0.12);
             const side = longSide + padding * 2;
 
             const out = document.createElement('canvas');
