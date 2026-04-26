@@ -292,14 +292,6 @@
         }
         .preview-wrap.is-active { display: block; }
         .preview-wrap img { width: 100%; height: auto; }
-        .preview-grid-overlay {
-            position: absolute; inset: 0;
-            display: grid;
-            pointer-events: none;
-        }
-        .preview-grid-overlay > div {
-            border: 1px dashed rgba(99, 102, 241, 0.7);
-        }
 
         /* ===========================================================
            투명화 모드 선택 (라디오)
@@ -616,6 +608,30 @@
         }
 
         /* ===========================================================
+           카카오톡 전송 주의 — 빨간 강조 경고 박스
+           =========================================================== */
+        .kakao-warning {
+            background: #fef2f2;             /* red-50 */
+            border: 1.5px solid #fecaca;     /* red-200 */
+            border-left: 5px solid #ef4444;  /* red-500 */
+            border-radius: var(--radius-md);
+            padding: 14px 16px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.65;
+            color: #7f1d1d;                  /* red-900 */
+            box-shadow: var(--shadow-sm);
+        }
+        .kakao-warning strong { color: #b91c1c; font-weight: 700; }
+        .kakao-warning .kw-title {
+            display: block;
+            font-size: 14px;
+            font-weight: 800;
+            color: #b91c1c;
+            margin-bottom: 4px;
+        }
+
+        /* ===========================================================
            사용 가이드 (아코디언)
            =========================================================== */
         .guide details {
@@ -782,7 +798,6 @@
             </div>
             <div class="preview-wrap" id="preview-wrap">
                 <img id="preview-img" alt="업로드 이미지 미리보기" />
-                <div class="preview-grid-overlay" id="preview-grid-overlay" aria-hidden="true"></div>
             </div>
         </section>
 
@@ -839,6 +854,14 @@
                 <span>📖</span>
                 <span>스티커 사용 가이드</span>
             </h2>
+
+            <!-- 카카오톡 전송 시 화질 '원본' 강조 경고 -->
+            <div class="kakao-warning" role="alert">
+                <span class="kw-title">🚨 카카오톡 전송 시 주의</span>
+                갤러리에서 사진으로 보낼 때 우측 하단 <strong>쩜쩜쩜(⋯ 옵션)</strong>에서
+                화질을 반드시 <strong>'원본'</strong>으로 선택해야 배경이 까맣거나 하얗게 변하지 않고
+                <strong>투명하게 전송</strong>됩니다.
+            </div>
 
             <details>
                 <summary>
@@ -953,7 +976,6 @@
         const fileInput      = $('file-input');
         const previewWrap    = $('preview-wrap');
         const previewImg     = $('preview-img');
-        const previewGridEl  = $('preview-grid-overlay');
         const runBtn         = $('run-btn');
         const progressWrap   = $('progress-wrap');
         const progressText   = $('progress-status-text');
@@ -1018,13 +1040,11 @@
             return v;
         }
 
-        /** 미리보기 영역 위에 분할선 그리드 오버레이 그리기 */
-        function renderPreviewGridOverlay() {
+        /** 칸수 변경 시 총 개수 표시만 갱신
+         *  (미리보기 점선 오버레이는 스마트 분할 결과와 일치하지 않아 제거됨) */
+        function updateTotalCount() {
             const cols = readIntInput(colsInput, 4, 1, 20);
             const rows = readIntInput(rowsInput, 5, 1, 20);
-            previewGridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-            previewGridEl.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
-            previewGridEl.innerHTML = '<div></div>'.repeat(cols * rows);
             totalCountEl.textContent = String(cols * rows);
         }
 
@@ -1043,12 +1063,12 @@
                 v += btn.dataset.action === 'inc' ? 1 : -1;
                 v = Math.max(min, Math.min(max, v));
                 target.value = String(v);
-                renderPreviewGridOverlay();
+                updateTotalCount();
             });
         });
         [colsInput, rowsInput].forEach((el) => {
-            el.addEventListener('input', renderPreviewGridOverlay);
-            el.addEventListener('blur', renderPreviewGridOverlay);
+            el.addEventListener('input', updateTotalCount);
+            el.addEventListener('blur', updateTotalCount);
         });
 
         // ------ 5. 이미지 입력: 클릭 + 드래그&드롭 + 클립보드 ------
@@ -1062,7 +1082,7 @@
             previewImg.src = url;
             previewImg.onload = () => {
                 previewWrap.classList.add('is-active');
-                renderPreviewGridOverlay();
+                updateTotalCount();
             };
             refreshRunBtn();
             toast('이미지가 업로드되었어요!');
@@ -1138,17 +1158,17 @@
 
                     let processed = applyStickerMode(piece);
 
-                    // 가장자리에 닿은 작은 파편(이웃 이모티콘 찌꺼기) 제거
-                    processed = removeEdgeFragments(processed);
+                    // 연결 요소 분석(CCA) — 메인 피사체만 남기고 옆 스티커 찌꺼기는 모두 투명화
+                    processed = keepLargestComponent(processed);
 
                     // 투명 외곽 Trim → 1:1 정사각화
                     const square = trimAndSquare(processed);
 
-                    // PNG Blob
+                    // PNG Blob 강제 (투명 알파 채널 보존)
                     const blob = await new Promise((resolve) =>
                         square.toBlob(resolve, 'image/png')
                     );
-                    if (blob) {
+                    if (blob && blob.type === 'image/png') {
                         const url = URL.createObjectURL(blob);
                         const idx = i + 1;
                         const name = `emoticon_${String(idx).padStart(3, '0')}.png`;
@@ -1203,7 +1223,7 @@
                                     (균등분할 ±35% 범위 내 가장 긴 갭의 중앙)
              3) sliceWithOverlap  — 셀 영역 ±12% 버퍼 포함하여 슬라이싱
                                     (이웃 글씨·데코레이션 보호)
-             4) (후속) removeEdgeFragments — 가장자리에 닿은 작은 파편 제거
+             4) (후속) keepLargestComponent — CCA 로 메인 피사체만 남기고 모두 투명화
            ============================================================ */
 
         const BG_THRESHOLD = 235;   // R/G/B 모두 이 값 이상이면 흰색 배경 후보
@@ -1383,49 +1403,81 @@
         }
 
         /**
-         * 가장자리에 닿은 작은 파편(이웃 이모티콘 찌꺼기) 제거
-         * - 비투명 픽셀의 연결 컴포넌트(4-connectivity)를 모두 찾음
-         * - 가장 큰 컴포넌트(메인 피사체)의 15% 미만 + 캔버스 가장자리에 닿은
-         *   컴포넌트는 투명 처리 (메인의 분리된 부분-말풍선/장식 등은 보존)
+         * 연결 요소 분석(CCA) — 메인 피사체만 남기기
+         * - 비투명 픽셀의 4-connectivity 연결 컴포넌트를 모두 라벨링
+         * - 픽셀 수가 가장 많은 단일 덩어리(메인 피사체)를 식별
+         * - 그 외 모든 덩어리(허공에 뜬 옆 스티커 찌꺼기·노이즈)는 alpha=0
+         * - Iterative DFS + 사전 할당 Int32Array 스택으로 큰 캔버스에서도 안전
          */
-        function removeEdgeFragments(canvas) {
+        function keepLargestComponent(canvas) {
             const w = canvas.width, h = canvas.height;
+            const total = w * h;
             const ctx = canvas.getContext('2d', { willReadFrequently: true });
             const imgData = ctx.getImageData(0, 0, w, h);
             const data = imgData.data;
-            const visited = new Uint8Array(w * h);
-            const comps = [];
 
-            for (let p0 = 0; p0 < w * h; p0++) {
-                if (visited[p0] || data[p0 * 4 + 3] <= ALPHA_MIN) continue;
-                const stack = [p0];
-                const pixels = [];
-                let touchesEdge = false;
-                while (stack.length > 0) {
-                    const p = stack.pop();
-                    if (visited[p]) continue;
-                    if (data[p * 4 + 3] <= ALPHA_MIN) continue;
-                    visited[p] = 1;
-                    pixels.push(p);
-                    const x = p % w, y = (p / w) | 0;
-                    if (x === 0 || x === w - 1 || y === 0 || y === h - 1) touchesEdge = true;
-                    if (x + 1 < w) stack.push(p + 1);
-                    if (x > 0)     stack.push(p - 1);
-                    if (y + 1 < h) stack.push(p + w);
-                    if (y > 0)     stack.push(p - w);
+            // labels[i] = 0 (미방문/투명), >=1 (해당 컴포넌트 ID)
+            const labels = new Int32Array(total);
+            const stack  = new Int32Array(total);
+            let nextId = 1;
+            let mainId = 0, mainSize = 0;
+
+            for (let p0 = 0; p0 < total; p0++) {
+                if (labels[p0] !== 0) continue;
+                if (data[p0 * 4 + 3] <= ALPHA_MIN) continue;
+
+                // 새 컴포넌트 시작
+                const id = nextId++;
+                let size = 0;
+                let sp = 0;
+                labels[p0] = id;
+                size++;
+                stack[sp++] = p0;
+
+                while (sp > 0) {
+                    const p = stack[--sp];
+                    const x = p % w;
+                    const y = (p / w) | 0;
+                    let np;
+                    if (x + 1 < w) {
+                        np = p + 1;
+                        if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
+                            labels[np] = id; size++; stack[sp++] = np;
+                        }
+                    }
+                    if (x > 0) {
+                        np = p - 1;
+                        if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
+                            labels[np] = id; size++; stack[sp++] = np;
+                        }
+                    }
+                    if (y + 1 < h) {
+                        np = p + w;
+                        if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
+                            labels[np] = id; size++; stack[sp++] = np;
+                        }
+                    }
+                    if (y > 0) {
+                        np = p - w;
+                        if (labels[np] === 0 && data[np * 4 + 3] > ALPHA_MIN) {
+                            labels[np] = id; size++; stack[sp++] = np;
+                        }
+                    }
                 }
-                comps.push({ pixels, size: pixels.length, touchesEdge });
+
+                if (size > mainSize) {
+                    mainSize = size;
+                    mainId = id;
+                }
             }
 
-            if (comps.length <= 1) return canvas;
-            comps.sort((a, b) => b.size - a.size);
-            const mainSize = comps[0].size;
+            // 컴포넌트 0개 또는 1개만 있으면 손댈 것 없음
+            if (mainId === 0 || nextId === 2) return canvas;
 
-            // 메인의 15% 미만 + 가장자리 닿은 파편만 제거 (보수적)
-            for (let i = 1; i < comps.length; i++) {
-                const cmp = comps[i];
-                if (cmp.touchesEdge && cmp.size < mainSize * 0.15) {
-                    for (const p of cmp.pixels) data[p * 4 + 3] = 0;
+            // 메인 외 모든 덩어리 → 완전 투명 (alpha=0)
+            for (let i = 0; i < total; i++) {
+                if (labels[i] !== mainId) {
+                    data[i * 4 + 3] = 0;
                 }
             }
             ctx.putImageData(imgData, 0, 0);
@@ -1513,6 +1565,7 @@
         /**
          * 캔버스의 투명한 외곽 여백을 잘라내고
          * 가장 긴 변 기준 정사각형 캔버스 가운데 배치하여 반환
+         * - 정사각 캔버스를 명시적으로 clearRect 로 초기화하여 PNG 투명 배경 보장
          */
         function trimAndSquare(src) {
             const w = src.width, h = src.height;
@@ -1538,6 +1591,8 @@
             if (maxX < 0) {
                 const empty = document.createElement('canvas');
                 empty.width = empty.height = 32;
+                // 빈 캔버스도 명시적으로 투명 초기화
+                empty.getContext('2d').clearRect(0, 0, 32, 32);
                 return empty;
             }
 
@@ -1553,6 +1608,10 @@
             out.width = side;
             out.height = side;
             const outCtx = out.getContext('2d');
+
+            // ★ 명시적 투명 초기화 — PNG 투명 배경 보장
+            outCtx.clearRect(0, 0, side, side);
+
             outCtx.imageSmoothingEnabled = true;
             outCtx.imageSmoothingQuality = 'high';
 
@@ -1732,7 +1791,7 @@
         document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 
         // ------ 11. 초기 렌더 ------
-        renderPreviewGridOverlay();
+        updateTotalCount();
     })();
     </script>
 </body>
