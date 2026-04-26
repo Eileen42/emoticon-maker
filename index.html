@@ -7,13 +7,6 @@
     <meta name="theme-color" content="#6366f1" />
     <title>이모티콘 자동 분할 메이커 — 무료 카톡 스티커 메이커</title>
 
-    <!-- ============================================================
-         외부 라이브러리 (CDN)
-         - imgly : 브라우저에서 동작하는 AI 배경 제거 라이브러리
-                   (모드 B: AI 누끼 모드에서만 호출)
-         ============================================================ -->
-    <script src="https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.4.3/dist/browser.js"></script>
-
     <style>
         /* ===========================================================
            디자인 토큰 (Tailwind 스타일 CSS 변수)
@@ -793,28 +786,12 @@
             </div>
         </section>
 
-        <!-- 3단계: 투명화 모드 + 분할 실행 -->
+        <!-- 3단계: 분할 실행 -->
         <section class="card" aria-labelledby="step3-title">
             <h2 id="step3-title" class="card__title">
                 <span class="step-num">3</span>
-                <span>투명화 모드 선택 → 분할</span>
+                <span>분할 실행</span>
             </h2>
-
-            <!-- 모드 선택 (라디오) -->
-            <div class="mode-group" role="radiogroup" aria-label="투명화 모드">
-                <input type="radio" name="mode" id="mode-a" value="A" checked />
-                <label for="mode-a">
-                    <span class="mode-emoji">🎨</span>
-                    <span class="mode-title">스티커 모드</span>
-                    <span class="mode-desc">외곽 흰색만 투명화<br>(글씨/테두리 보존)</span>
-                </label>
-                <input type="radio" name="mode" id="mode-b" value="B" />
-                <label for="mode-b">
-                    <span class="mode-emoji">🤖</span>
-                    <span class="mode-title">AI 누끼 모드</span>
-                    <span class="mode-desc">AI가 피사체만 추출<br>(첫 사용 시 모델 다운로드)</span>
-                </label>
-            </div>
 
             <button type="button" class="btn btn--primary" id="run-btn" disabled>
                 <span>✨</span>
@@ -844,16 +821,13 @@
                 </div>
             </div>
 
-            <!-- 전체 개별 순차 다운로드 -->
+            <!-- 전체 저장 (모바일: 공유 시트, 데스크톱: 순차 다운로드) -->
             <div class="download-all-wrap">
                 <button type="button" class="btn btn--success" id="download-all-btn">
-                    <span>⬇️</span>
+                    <span id="download-all-btn-icon">⬇️</span>
                     <span id="download-all-btn-text">전체 개별 다운로드</span>
                 </button>
-                <p class="download-warning">
-                    ※ 브라우저 설정에 따라 <strong>'다중 파일 다운로드 허용'</strong> 팝업이 뜰 수 있습니다.
-                    반드시 <strong>'허용'</strong>을 눌러주세요.
-                </p>
+                <p class="download-warning" id="download-warning"></p>
             </div>
 
             <div class="results-grid" id="results-grid"></div>
@@ -869,16 +843,17 @@
             <details>
                 <summary>
                     <span style="display:flex;align-items:center;">
-                        <span class="guide__icon guide__icon--android">🤖</span>
-                        안드로이드 (삼성 키보드)
+                        <span class="guide__icon guide__icon--ios">🍎</span>
+                        아이폰 (사진 앱 / 카카오톡)
                     </span>
                 </summary>
                 <div class="guide__body">
                     <ol>
-                        <li><strong>PNG 다운로드</strong> — 분할된 스티커를 기기에 저장</li>
-                        <li><strong>삼성 키보드 → 클립보드</strong> 열기</li>
-                        <li>클립보드 우측 상단 ✏️ <strong>편집</strong> → 갤러리에서 PNG 선택 → <strong>📌 핀(고정)</strong></li>
-                        <li>카카오톡 등 채팅창에서 <strong>클립보드를 열고 이미지 탭</strong> → 스티커처럼 전송!</li>
+                        <li>스티커 카드의 <strong>📲 저장</strong> 또는 <strong>📲 갤러리에 전체 저장</strong> 탭</li>
+                        <li>공유 시트가 뜨면 <strong>'이미지 저장'</strong>(또는 'Save N Images') 선택 → <strong>사진 앱</strong>에 PNG 그대로 저장 (투명 배경 보존)</li>
+                        <li>사진 앱에서 이미지 열고 <strong>공유 → 복사</strong></li>
+                        <li><strong>카카오톡 대화창에 붙여넣기</strong> → 투명 스티커로 전송!</li>
+                        <li>또는 메시지 앱 → <strong>iMessage 스티커</strong>로 등록 가능</li>
                     </ol>
                 </div>
             </details>
@@ -886,16 +861,16 @@
             <details>
                 <summary>
                     <span style="display:flex;align-items:center;">
-                        <span class="guide__icon guide__icon--ios">🍎</span>
-                        아이폰 (iMessage / 카카오톡)
+                        <span class="guide__icon guide__icon--android">🤖</span>
+                        안드로이드 (삼성 키보드)
                     </span>
                 </summary>
                 <div class="guide__body">
                     <ol>
-                        <li><strong>PNG 다운로드</strong> — 분할된 스티커를 사진 앱에 저장</li>
-                        <li>갤러리에서 사진을 열고 <strong>공유 → 사진 복사</strong></li>
-                        <li><strong>카카오톡 대화창에 붙여넣기</strong> → 스티커처럼 전송</li>
-                        <li>또는 메시지 앱에서 <strong>iMessage 스티커</strong>로 등록하여 사용!</li>
+                        <li>스티커 카드의 <strong>📲 저장</strong> 또는 <strong>📲 갤러리에 전체 저장</strong> 탭</li>
+                        <li>공유 시트가 뜨면 <strong>'갤러리에 저장'</strong>(또는 '내 파일에 저장') 선택</li>
+                        <li><strong>삼성 키보드 → 클립보드</strong> 열기 → ✏️ 편집 → 갤러리에서 PNG 선택 → <strong>📌 핀(고정)</strong></li>
+                        <li>카카오톡 등 채팅창에서 <strong>클립보드를 열고 이미지 탭</strong> → 스티커처럼 전송!</li>
                     </ol>
                 </div>
             </details>
@@ -909,9 +884,9 @@
                 </summary>
                 <div class="guide__body">
                     <ol>
-                        <li><strong>스티커 모드</strong>는 <strong>흰색 배경</strong> + 글씨/테두리가 있는 이모티콘 시트에 최적입니다.</li>
-                        <li><strong>AI 누끼 모드</strong>는 복잡한 배경에서 <strong>인물/캐릭터</strong>만 추출할 때 유용합니다.</li>
+                        <li>이 도구는 <strong>흰색 배경</strong> + 글씨/테두리가 있는 이모티콘 시트에 최적화되어 있습니다.</li>
                         <li>격자가 정확히 맞아야 깔끔하게 분할됩니다 — 가로/세로 칸 수를 원본과 맞춰주세요.</li>
+                        <li>외곽 여백/셀 간격이 미세하게 달라도 <strong>스마트 분할</strong>이 자동 보정해줍니다.</li>
                         <li>모든 처리는 <strong>브라우저 안에서만</strong> 이루어지며 이미지가 외부로 전송되지 않습니다.</li>
                     </ol>
                 </div>
@@ -956,16 +931,15 @@
        흐름:
          1) 사용자가 가로/세로 칸 수를 입력
          2) 이미지를 업로드 (드래그&드롭 / 클릭 / Ctrl+V 붙여넣기)
-         3) 투명화 모드 선택 (A: 스티커 모드 / B: AI 누끼 모드)
-         4) [분할 시작] 버튼 클릭
-         5) Canvas API 로 가로*세로 칸으로 균등 분할 (깍둑썰기)
-         6) 각 칸에 모드별 투명화 적용
-            - A: 외곽에서부터 흰색에 가까운 픽셀만 BFS Flood-fill 로 투명화
-            - B: @imgly/background-removal 로 AI 누끼
-         7) 각 결과의 투명 픽셀 외곽 여백 자동 Trim
-         8) 1:1 정사각형 캔버스 가운데 배치 → PNG Blob 생성
-         9) 결과 그리드 표시
-         10) 전체 개별 순차 다운로드 (0.4초 간격, 팝업 차단 우회)
+         3) [분할 시작] 버튼 클릭
+         4) 스마트 분할 파이프라인 (시트 Pre-trim → 절취선 검출 → 버퍼 슬라이싱)
+         5) 각 조각의 외곽 흰색을 BFS Flood-fill 로 투명화
+         6) 가장자리 파편 제거 → 투명 외곽 Trim → 1:1 정사각화
+         7) PNG Blob 생성 → 결과 그리드 표시
+         8) 저장:
+            - 모바일(iOS/Android): Web Share API → 공유 시트의 '사진/갤러리 저장'
+              (PNG 투명 배경 그대로 보존)
+            - 데스크톱: <a download> 태그로 순차 다운로드 (0.4초 간격)
        ================================================================ */
     (() => {
         'use strict';
@@ -989,6 +963,8 @@
         const resultCountEl  = $('result-count');
         const downloadAllBtn = $('download-all-btn');
         const downloadAllBtnText = $('download-all-btn-text');
+        const downloadAllBtnIcon = $('download-all-btn-icon');
+        const downloadWarning = $('download-warning');
         const resetBtn       = $('reset-btn');
         const modal          = $('modal');
         const modalImg       = $('modal-img');
@@ -998,7 +974,20 @@
         // ------ 2. 상태 ------
         let uploadedFile = null;       // 사용자가 업로드한 원본 File 객체
         let stickerBlobs = [];         // 분할 완성된 PNG Blob 배열 ({blob, url, name})
-        let isDownloadingAll = false;  // 전체 다운로드 진행 중 여부 (중복 방지)
+        let isDownloadingAll = false;  // 전체 저장 진행 중 여부 (중복 방지)
+
+        // ------ 2-1. Web Share API 지원 검출 ------
+        // 모바일(iOS/Android) + Files 공유 지원 시: 공유 시트 통해 사진앱/갤러리에 저장
+        // (iOS Safari는 <a download>로는 사진앱 저장이 불가능 + PNG 알파 손실)
+        const isMobile = /Mobi|Android|iPhone|iPad|iPod/.test(navigator.userAgent);
+        const supportsShareFile = (() => {
+            if (!isMobile) return false;
+            if (!navigator.canShare || !navigator.share) return false;
+            try {
+                const t = new File([new Uint8Array([0])], 't.png', { type: 'image/png' });
+                return navigator.canShare({ files: [t] });
+            } catch { return false; }
+        })();
 
         // ------ 3. 유틸 ------
         /** 토스트 메시지 잠깐 띄우기 */
@@ -1142,29 +1131,12 @@
                 });
                 setProgress(8, `${total}개로 분할 완료. 투명화 처리 중…`);
 
-                // (d) 선택된 모드
-                const mode = (document.querySelector('input[name="mode"]:checked') || {}).value || 'A';
-
-                // (e) 각 조각마다 처리
+                // (d) 각 조각마다 처리: 외곽 흰색 BFS Flood-fill 투명화
                 const blobs = [];
                 for (let i = 0; i < pieces.length; i++) {
                     const piece = pieces[i];
 
-                    // 모드별 투명화
-                    let processed;
-                    if (mode === 'A') {
-                        // 스티커 모드: 외곽 흰색 Flood-fill
-                        processed = applyStickerMode(piece);
-                    } else {
-                        // AI 누끼 모드: @imgly 라이브러리 호출
-                        processed = await applyAIMode(piece, (subPct) => {
-                            // 모델 다운로드/추론 진행률 (i번째 조각의 sub-progress)
-                            const base = 8 + Math.round((i / total) * 85);
-                            const span = Math.round((1 / total) * 85);
-                            setProgress(base + Math.round(subPct * span / 100),
-                                        `AI 처리 중… (${i + 1}/${total})`);
-                        });
-                    }
+                    let processed = applyStickerMode(piece);
 
                     // 가장자리에 닿은 작은 파편(이웃 이모티콘 찌꺼기) 제거
                     processed = removeEdgeFragments(processed);
@@ -1216,17 +1188,6 @@
                 const url = URL.createObjectURL(file);
                 const img = new Image();
                 img.onload = () => resolve(img);
-                img.onerror = () => reject(new Error('이미지 디코딩 실패'));
-                img.src = url;
-            });
-        }
-
-        /** Blob → HTMLImageElement */
-        function blobToImage(blob) {
-            return new Promise((resolve, reject) => {
-                const url = URL.createObjectURL(blob);
-                const img = new Image();
-                img.onload = () => { resolve(img); /* url은 재사용되므로 즉시 해제하지 않음 */ };
                 img.onerror = () => reject(new Error('이미지 디코딩 실패'));
                 img.src = url;
             });
@@ -1472,7 +1433,7 @@
         }
 
         /**
-         * [모드 A] 스티커 모드 — 외곽 흰색만 Flood-fill 로 투명화
+         * 스티커 모드 — 외곽 흰색만 Flood-fill 로 투명화
          * - 4 가장자리에서 시작해 BFS 로 확장
          * - 흰색에 가까운 픽셀(R/G/B 모두 임계값 이상)만 alpha=0
          * - 글씨/내부 흰색/테두리는 보존됨
@@ -1550,43 +1511,6 @@
         }
 
         /**
-         * [모드 B] AI 누끼 모드 — @imgly/background-removal 사용
-         * - 라이브러리는 전역 함수로 노출됨 (imglyRemoveBackground 또는 removeBackground)
-         */
-        async function applyAIMode(canvas, onSubProgress) {
-            // 라이브러리가 노출하는 전역 함수 탐색
-            const removeBg = window.imglyRemoveBackground
-                          || window.removeBackground
-                          || (window.imgly && window.imgly.removeBackground);
-
-            if (typeof removeBg !== 'function') {
-                throw new Error('AI 라이브러리를 불러오지 못했습니다. 인터넷 연결을 확인해주세요.');
-            }
-
-            // 캔버스 → Blob
-            const inputBlob = await new Promise((resolve) =>
-                canvas.toBlob(resolve, 'image/png')
-            );
-
-            // 배경 제거 실행
-            const outBlob = await removeBg(inputBlob, {
-                progress: (key, current, total) => {
-                    if (total > 0 && typeof onSubProgress === 'function') {
-                        onSubProgress((current / total) * 100);
-                    }
-                }
-            });
-
-            // Blob → 캔버스
-            const outImg = await blobToImage(outBlob);
-            const out = document.createElement('canvas');
-            out.width = outImg.naturalWidth;
-            out.height = outImg.naturalHeight;
-            out.getContext('2d').drawImage(outImg, 0, 0);
-            return out;
-        }
-
-        /**
          * 캔버스의 투명한 외곽 여백을 잘라내고
          * 가장 긴 변 기준 정사각형 캔버스 가운데 배치하여 반환
          */
@@ -1660,7 +1584,7 @@
                     </div>
                     <div class="sticker-item__actions">
                         <button type="button" data-act="zoom" data-idx="${i}">🔍 크게 보기</button>
-                        <button type="button" data-act="dl" data-idx="${i}">⬇ 다운로드</button>
+                        <button type="button" data-act="dl" data-idx="${i}">${supportsShareFile ? '📲 저장' : '⬇ 다운로드'}</button>
                     </div>
                 `;
                 resultsGrid.appendChild(item);
@@ -1677,55 +1601,108 @@
             const idx = parseInt(btn.dataset.idx, 10);
             const item = stickerBlobs[idx];
             if (!item) return;
-            if (btn.dataset.act === 'dl') downloadOne(item.url, item.name);
+            if (btn.dataset.act === 'dl') saveOne(item);
             else if (btn.dataset.act === 'zoom') openModal(item.url);
         });
 
-        // ------ 8. 다운로드 (개별 / 전체 순차) ------
-        /** <a> 태그를 만들어 클릭하여 다운로드 트리거 */
-        function downloadOne(url, filename) {
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
+        // ------ 8. 저장 로직 (모바일: Web Share, 데스크톱: <a download>) ------
+
+        /** UI 텍스트(전체 저장 버튼 + 안내 문구)를 환경에 맞게 초기화 */
+        const DEFAULT_BTN_LABEL = supportsShareFile ? '갤러리에 전체 저장' : '전체 개별 다운로드';
+        const DEFAULT_BTN_ICON  = supportsShareFile ? '📲' : '⬇️';
+        downloadAllBtnText.textContent = DEFAULT_BTN_LABEL;
+        downloadAllBtnIcon.textContent = DEFAULT_BTN_ICON;
+        downloadWarning.innerHTML = supportsShareFile
+            ? `📲 공유 시트가 열리면 <strong>'이미지 저장'</strong>(iOS) 또는 <strong>'갤러리에 저장'</strong>(Android)을 선택하세요. <strong>투명 배경 PNG 그대로</strong> 저장됩니다.`
+            : `※ 브라우저 설정에 따라 <strong>'다중 파일 다운로드 허용'</strong> 팝업이 뜰 수 있습니다. 반드시 <strong>'허용'</strong>을 눌러주세요.`;
+
+        /**
+         * 단일 스티커 저장
+         * - 모바일: Web Share API → 공유 시트 → 사진앱/갤러리에 PNG 그대로 저장
+         * - 데스크톱: <a download>로 즉시 다운로드
+         */
+        async function saveOne(item) {
+            if (supportsShareFile) {
+                const file = new File([item.blob], item.name, { type: 'image/png' });
+                try {
+                    await navigator.share({ files: [file] });
+                } catch (err) {
+                    if (err && err.name === 'AbortError') return;  // 사용자가 취소
+                    console.warn('share failed:', err);
+                    toast('저장에 실패했어요. 이미지를 길게 눌러 직접 저장해주세요.');
+                }
+            } else {
+                const a = document.createElement('a');
+                a.href = item.url;
+                a.download = item.name;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            }
         }
 
         /**
-         * 전체 개별 순차 다운로드
-         * - JSZip 사용하지 않음 (모바일에서 압축해제 불편 방지)
-         * - 약 0.4초(400ms) 간격으로 순차 트리거하여 브라우저 다중 다운로드 차단 우회
+         * 전체 저장
+         * - 모바일: 공유 시트 한 번에 모든 파일 → 'N장의 이미지 저장' 한 번에 사진앱/갤러리로
+         * - 데스크톱: 0.4초 간격 순차 다운로드 (다중 다운로드 차단 우회)
          */
         downloadAllBtn.addEventListener('click', async () => {
             if (!stickerBlobs.length || isDownloadingAll) return;
-
             isDownloadingAll = true;
             downloadAllBtn.disabled = true;
             const total = stickerBlobs.length;
 
-            try {
-                for (let i = 0; i < total; i++) {
-                    downloadAllBtnText.textContent = `다운로드 중 (${i + 1}/${total})...`;
-                    downloadOne(stickerBlobs[i].url, stickerBlobs[i].name);
-                    // 0.4초 간격 (마지막 항목은 대기 불필요)
-                    if (i < total - 1) {
-                        await new Promise(r => setTimeout(r, 400));
-                    }
-                }
-                downloadAllBtnText.textContent = '✅ 전체 다운로드 완료!';
-                // 2초 뒤 원래 상태로 복구
+            const restoreLabel = (label, ms = 2000) => {
+                downloadAllBtnText.textContent = label;
                 setTimeout(() => {
-                    downloadAllBtnText.textContent = '전체 개별 다운로드';
+                    downloadAllBtnText.textContent = DEFAULT_BTN_LABEL;
+                    downloadAllBtnIcon.textContent = DEFAULT_BTN_ICON;
                     downloadAllBtn.disabled = false;
                     isDownloadingAll = false;
-                }, 2000);
-            } catch (err) {
-                console.error(err);
-                toast('다운로드 중 오류가 발생했어요');
-                downloadAllBtnText.textContent = '전체 개별 다운로드';
-                downloadAllBtn.disabled = false;
-                isDownloadingAll = false;
+                }, ms);
+            };
+
+            if (supportsShareFile) {
+                // 모바일: 모든 PNG를 한 번의 공유 시트로 (iOS는 'N장의 이미지 저장' 옵션 제공)
+                downloadAllBtnText.textContent = `공유 시트 여는 중…`;
+                try {
+                    const files = stickerBlobs.map(s =>
+                        new File([s.blob], s.name, { type: 'image/png' })
+                    );
+                    // 일부 환경에서 다수 파일 공유가 거부될 수 있어 한 번 더 체크
+                    if (!navigator.canShare({ files })) {
+                        throw new Error('이 기기는 다중 파일 공유를 지원하지 않습니다.');
+                    }
+                    await navigator.share({ files });
+                    restoreLabel('✅ 저장 완료!');
+                } catch (err) {
+                    if (err && err.name === 'AbortError') {
+                        restoreLabel(DEFAULT_BTN_LABEL, 0);
+                    } else {
+                        console.error(err);
+                        toast('저장 실패. 카드별 [📲 저장] 버튼으로 한 장씩 시도해주세요.');
+                        restoreLabel(DEFAULT_BTN_LABEL, 0);
+                    }
+                }
+            } else {
+                // 데스크톱: 0.4초 간격 순차 다운로드
+                try {
+                    for (let i = 0; i < total; i++) {
+                        downloadAllBtnText.textContent = `다운로드 중 (${i + 1}/${total})…`;
+                        const a = document.createElement('a');
+                        a.href = stickerBlobs[i].url;
+                        a.download = stickerBlobs[i].name;
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                        if (i < total - 1) await new Promise(r => setTimeout(r, 400));
+                    }
+                    restoreLabel('✅ 전체 다운로드 완료!');
+                } catch (err) {
+                    console.error(err);
+                    toast('다운로드 중 오류가 발생했어요');
+                    restoreLabel(DEFAULT_BTN_LABEL, 0);
+                }
             }
         });
 
