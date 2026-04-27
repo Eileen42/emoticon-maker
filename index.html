@@ -608,6 +608,69 @@
         }
 
         /* ===========================================================
+           배경색 선택 라디오 그룹
+           =========================================================== */
+        .bg-group {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        .bg-group input[type="radio"] {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .bg-group label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 4px;
+            background: var(--color-bg);
+            border: 2px solid var(--color-border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            text-align: center;
+            transition: all var(--transition);
+            font-size: 11.5px;
+            font-weight: 600;
+            line-height: 1.3;
+            color: var(--color-text);
+            user-select: none;
+        }
+        .bg-group label:hover { border-color: var(--color-primary); }
+        .bg-group input[type="radio"]:checked + label {
+            background: var(--color-primary-light);
+            border-color: var(--color-primary);
+            box-shadow: var(--shadow-sm);
+        }
+        .bg-swatch {
+            width: 34px;
+            height: 34px;
+            border-radius: 50%;
+            box-shadow: inset 0 0 0 1px rgba(0,0,0,0.10);
+        }
+        .bg-swatch--transparent {
+            background:
+                linear-gradient(45deg, #cbd5e1 25%, transparent 25%),
+                linear-gradient(-45deg, #cbd5e1 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #cbd5e1 75%),
+                linear-gradient(-45deg, transparent 75%, #cbd5e1 75%);
+            background-size: 8px 8px;
+            background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+            background-color: white;
+        }
+        .bg-swatch--white { background: #ffffff; box-shadow: inset 0 0 0 1px #cbd5e1; }
+        .bg-group small {
+            display: block;
+            color: var(--color-text-muted);
+            font-size: 10px;
+            font-weight: 500;
+            margin-top: 1px;
+        }
+
+        /* ===========================================================
            카카오톡 전송 주의 — 빨간 강조 경고 박스
            =========================================================== */
         .kakao-warning {
@@ -801,12 +864,36 @@
             </div>
         </section>
 
-        <!-- 3단계: 분할 실행 -->
+        <!-- 3단계: 배경색 선택 + 분할 실행 -->
         <section class="card" aria-labelledby="step3-title">
             <h2 id="step3-title" class="card__title">
                 <span class="step-num">3</span>
-                <span>분할 실행</span>
+                <span>배경색 선택 → 분할 실행</span>
             </h2>
+
+            <!-- 배경색 선택: 투명(PNG) / 카톡 파랑·흰색·검정(JPG) -->
+            <div class="bg-group" role="radiogroup" aria-label="배경색 선택">
+                <input type="radio" name="bg" id="bg-none" value="" checked />
+                <label for="bg-none">
+                    <span class="bg-swatch bg-swatch--transparent"></span>
+                    <span>투명<small>PNG · 기본</small></span>
+                </label>
+                <input type="radio" name="bg" id="bg-blue" value="#b2c7d9" />
+                <label for="bg-blue">
+                    <span class="bg-swatch" style="background:#b2c7d9"></span>
+                    <span>카톡 파랑<small>JPG</small></span>
+                </label>
+                <input type="radio" name="bg" id="bg-white" value="#ffffff" />
+                <label for="bg-white">
+                    <span class="bg-swatch bg-swatch--white"></span>
+                    <span>흰색<small>JPG</small></span>
+                </label>
+                <input type="radio" name="bg" id="bg-black" value="#000000" />
+                <label for="bg-black">
+                    <span class="bg-swatch" style="background:#000000"></span>
+                    <span>검정<small>JPG</small></span>
+                </label>
+            </div>
 
             <button type="button" class="btn btn--primary" id="run-btn" disabled>
                 <span>✨</span>
@@ -858,9 +945,11 @@
             <!-- 카카오톡 전송 시 화질 '원본' 강조 경고 -->
             <div class="kakao-warning" role="alert">
                 <span class="kw-title">🚨 카카오톡 전송 시 주의</span>
-                갤러리에서 사진으로 보낼 때 우측 하단 <strong>쩜쩜쩜(⋯ 옵션)</strong>에서
-                화질을 반드시 <strong>'원본'</strong>으로 선택해야 배경이 까맣거나 하얗게 변하지 않고
-                <strong>투명하게 전송</strong>됩니다.
+                <strong>투명 배경(PNG)</strong>으로 보낼 때는 갤러리 전송 시 우측 하단
+                <strong>쩜쩜쩜(⋯ 옵션)</strong>에서 화질을 반드시 <strong>'원본'</strong>으로
+                선택해야 배경이 까맣거나 하얗게 변하지 않고 <strong>투명하게 전송</strong>됩니다.<br>
+                ※ 투명 처리가 자꾸 꼬이면 위의 <strong>'카톡 파랑 / 흰색 / 검정' 배경색(JPG)</strong>
+                옵션을 선택하면 채팅창 색과 자연스럽게 어울리는 스티커가 생성됩니다.
             </div>
 
             <details>
@@ -1139,7 +1228,13 @@
                 setProgress(2, '이미지 읽는 중…');
                 const sourceImg = await fileToImage(uploadedFile);
 
-                // (c) 스마트 분할 파이프라인
+                // (c) 배경색 옵션 읽기 (빈 문자열 = 투명/PNG, 색상 = 단색배경/JPG)
+                const bgColor = (document.querySelector('input[name="bg"]:checked') || {}).value || '';
+                const isJpeg  = !!bgColor;
+                const mimeType = isJpeg ? 'image/jpeg' : 'image/png';
+                const fileExt  = isJpeg ? 'jpg' : 'png';
+
+                // (d) 스마트 분할 파이프라인
                 //     1) 시트 외곽 여백 Pre-trim
                 //     2) 빈 공간 스캔으로 절취선 자동 검출
                 //     3) ±12% 버퍼 포함 슬라이싱 (글씨/데코 보호)
@@ -1151,7 +1246,7 @@
                 });
                 setProgress(8, `${total}개로 분할 완료. 투명화 처리 중…`);
 
-                // (d) 각 조각마다 처리: 외곽 흰색 BFS Flood-fill 투명화
+                // (e) 각 조각마다 처리: 외곽 흰색 BFS Flood-fill 투명화
                 const blobs = [];
                 for (let i = 0; i < pieces.length; i++) {
                     const piece = pieces[i];
@@ -1162,17 +1257,19 @@
                     // 외곽 버퍼에 있는 옆 셀 침범 조각만 투명화
                     processed = cleanupNeighborFragments(processed);
 
-                    // 투명 외곽 Trim → 1:1 정사각화
-                    const square = trimAndSquare(processed);
+                    // Trim → 1:1 정사각화 (bgColor 가 있으면 그 색으로 배경 먼저 칠함)
+                    const square = trimAndSquare(processed, bgColor);
 
-                    // PNG Blob 강제 (투명 알파 채널 보존)
+                    // 배경 모드에 따라 PNG / JPG 로 출력 (JPG 품질 0.92)
                     const blob = await new Promise((resolve) =>
-                        square.toBlob(resolve, 'image/png')
+                        isJpeg
+                            ? square.toBlob(resolve, mimeType, 0.92)
+                            : square.toBlob(resolve, mimeType)
                     );
-                    if (blob && blob.type === 'image/png') {
+                    if (blob && (blob.type === 'image/png' || blob.type === 'image/jpeg')) {
                         const url = URL.createObjectURL(blob);
                         const idx = i + 1;
-                        const name = `emoticon_${String(idx).padStart(3, '0')}.png`;
+                        const name = `emoticon_${String(idx).padStart(3, '0')}.${fileExt}`;
                         blobs.push({ blob, url, name });
                     }
 
@@ -1610,9 +1707,11 @@
         /**
          * 캔버스의 투명한 외곽 여백을 잘라내고
          * 가장 긴 변 기준 정사각형 캔버스 가운데 배치하여 반환
-         * - 정사각 캔버스를 명시적으로 clearRect 로 초기화하여 PNG 투명 배경 보장
+         * @param {HTMLCanvasElement} src
+         * @param {string} bgColor  '' (투명) | '#b2c7d9' | '#ffffff' | '#000000'
+         *                          빈 문자열이면 PNG 용 투명 배경, 색상이면 JPG 용 단색 배경
          */
-        function trimAndSquare(src) {
+        function trimAndSquare(src, bgColor) {
             const w = src.width, h = src.height;
             const ctx = src.getContext('2d', { willReadFrequently: true });
             const data = ctx.getImageData(0, 0, w, h).data;
@@ -1632,12 +1731,17 @@
                 }
             }
 
-            // 빈 칸 → 작은 투명 캔버스 (인덱스 어긋나지 않게)
+            // 빈 칸 → 작은 캔버스 (인덱스 어긋나지 않게)
             if (maxX < 0) {
                 const empty = document.createElement('canvas');
                 empty.width = empty.height = 32;
-                // 빈 캔버스도 명시적으로 투명 초기화
-                empty.getContext('2d').clearRect(0, 0, 32, 32);
+                const emptyCtx = empty.getContext('2d');
+                if (bgColor) {
+                    emptyCtx.fillStyle = bgColor;
+                    emptyCtx.fillRect(0, 0, 32, 32);
+                } else {
+                    emptyCtx.clearRect(0, 0, 32, 32);
+                }
                 return empty;
             }
 
@@ -1654,13 +1758,18 @@
             out.height = side;
             const outCtx = out.getContext('2d');
 
-            // ★ 명시적 투명 초기화 — PNG 투명 배경 보장
-            outCtx.clearRect(0, 0, side, side);
+            // ★ 배경 처리 — 비투명 모드면 단색으로 먼저 칠하고, 투명 모드면 명시적으로 clear
+            if (bgColor) {
+                outCtx.fillStyle = bgColor;
+                outCtx.fillRect(0, 0, side, side);
+            } else {
+                outCtx.clearRect(0, 0, side, side);  // PNG 투명 배경 보장
+            }
 
             outCtx.imageSmoothingEnabled = true;
             outCtx.imageSmoothingQuality = 'high';
 
-            // 가운데 배치
+            // 가운데 배치 (이모티콘을 배경 위에 얹음)
             const dx = Math.round((side - trimW) / 2);
             const dy = Math.round((side - trimH) / 2);
             outCtx.drawImage(src, minX, minY, trimW, trimH, dx, dy, trimW, trimH);
@@ -1717,17 +1826,18 @@
         downloadAllBtnText.textContent = DEFAULT_BTN_LABEL;
         downloadAllBtnIcon.textContent = DEFAULT_BTN_ICON;
         downloadWarning.innerHTML = supportsShareFile
-            ? `📲 공유 시트가 열리면 <strong>'이미지 저장'</strong>(iOS) 또는 <strong>'갤러리에 저장'</strong>(Android)을 선택하세요. <strong>투명 배경 PNG 그대로</strong> 저장됩니다.`
+            ? `📲 공유 시트가 열리면 <strong>'이미지 저장'</strong>(iOS) 또는 <strong>'갤러리에 저장'</strong>(Android)을 선택하세요. <strong>원본 그대로</strong> 저장됩니다 (투명 옵션→PNG, 색상 옵션→JPG).`
             : `※ 브라우저 설정에 따라 <strong>'다중 파일 다운로드 허용'</strong> 팝업이 뜰 수 있습니다. 반드시 <strong>'허용'</strong>을 눌러주세요.`;
 
         /**
          * 단일 스티커 저장
-         * - 모바일: Web Share API → 공유 시트 → 사진앱/갤러리에 PNG 그대로 저장
+         * - 모바일: Web Share API → 공유 시트 → 사진앱/갤러리에 원본 그대로 저장
          * - 데스크톱: <a download>로 즉시 다운로드
          */
         async function saveOne(item) {
             if (supportsShareFile) {
-                const file = new File([item.blob], item.name, { type: 'image/png' });
+                // blob.type 그대로 (PNG 또는 JPG)
+                const file = new File([item.blob], item.name, { type: item.blob.type || 'image/png' });
                 try {
                     await navigator.share({ files: [file] });
                 } catch (err) {
@@ -1767,11 +1877,11 @@
             };
 
             if (supportsShareFile) {
-                // 모바일: 모든 PNG를 한 번의 공유 시트로 (iOS는 'N장의 이미지 저장' 옵션 제공)
+                // 모바일: 모든 파일을 한 번의 공유 시트로 (iOS는 'N장의 이미지 저장' 옵션 제공)
                 downloadAllBtnText.textContent = `공유 시트 여는 중…`;
                 try {
                     const files = stickerBlobs.map(s =>
-                        new File([s.blob], s.name, { type: 'image/png' })
+                        new File([s.blob], s.name, { type: s.blob.type || 'image/png' })
                     );
                     // 일부 환경에서 다수 파일 공유가 거부될 수 있어 한 번 더 체크
                     if (!navigator.canShare({ files })) {
