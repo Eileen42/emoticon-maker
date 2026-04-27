@@ -7,6 +7,10 @@
     <meta name="theme-color" content="#6366f1" />
     <title>이모티콘 자동 분할 메이커 — 무료 카톡 스티커 메이커</title>
 
+    <!-- Google AdSense 로더 (페이지당 1회) -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4907584103511840"
+            crossorigin="anonymous"></script>
+
     <style>
         /* ===========================================================
            디자인 토큰 (Tailwind 스타일 CSS 변수)
@@ -108,22 +112,17 @@
         }
 
         /* ===========================================================
-           애드센스 광고 영역 (반응형 Placeholder)
-           실제 운영 시 <ins class="adsbygoogle"> 태그로 교체
+           애드센스 광고 영역 (반응형 가로형)
+           min-height 으로 광고 로드 전 layout shift 방지
            =========================================================== */
         .ad-slot {
             margin: 16px auto;
             min-height: 100px;
-            background: var(--color-surface);
-            border: 1px dashed var(--color-border);
-            border-radius: var(--radius-md);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--color-text-light);
-            font-size: 12px;
             text-align: center;
-            padding: 16px;
+            overflow: hidden;
+        }
+        .ad-slot .adsbygoogle {
+            display: block;
         }
         @media (min-width: 768px) {
             .ad-slot { min-height: 120px; }
@@ -805,11 +804,19 @@
 
     <!-- ============================================================
          애드센스 광고 영역 (헤더 직아래)
-         실제 운영 시 아래 div 안에 <ins class="adsbygoogle" ...> 삽입
+         반응형 가로형 광고 — pub-4907584103511840 / slot 5573796466
          ============================================================ -->
     <div class="container">
-        <!-- 여기에 애드센스 삽입 (상단 반응형 광고) -->
-        <div class="ad-slot" id="ad-top">광고 영역 (상단)</div>
+        <div class="ad-slot" id="ad-top">
+            <!-- 이모티콘 메이커 (상단) -->
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-4907584103511840"
+                 data-ad-slot="5573796466"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
     </div>
 
     <!-- ============================================================
@@ -1011,8 +1018,16 @@
          애드센스 광고 영역 (푸터 직위)
          ============================================================ -->
     <div class="container">
-        <!-- 여기에 애드센스 삽입 (하단 반응형 광고) -->
-        <div class="ad-slot" id="ad-bottom">광고 영역 (하단)</div>
+        <div class="ad-slot" id="ad-bottom">
+            <!-- 이모티콘 메이커 (하단) -->
+            <ins class="adsbygoogle"
+                 style="display:block"
+                 data-ad-client="ca-pub-4907584103511840"
+                 data-ad-slot="5573796466"
+                 data-ad-format="auto"
+                 data-full-width-responsive="true"></ins>
+            <script>(adsbygoogle = window.adsbygoogle || []).push({});</script>
+        </div>
     </div>
 
     <!-- ============================================================
